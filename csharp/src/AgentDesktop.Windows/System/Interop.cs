@@ -1,0 +1,91 @@
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace AgentDesktop.Windows;
+
+/// <summary>The user32, dwmapi and kernel32 reads the window and process inventories need.
+/// Native AOT has no COM interop and no managed window handle, so every call is a typed
+/// P/Invoke. A call that fails is reported as an absent fact, never as a zero that reads
+/// as a real window, a real process, or a real title.</summary>
+internal static class Interop
+{
+    /// <summary>The documented `EnumWindows` callback contract: returning false stops the
+    /// walk. The delegate is kept alive by the pinned context the walk passes to it.</summary>
+    internal delegate bool EnumWindowsProc(IntPtr window, IntPtr context);
+
+    [DllImport("user32.dll")]
+    internal static extern int EnumWindows(EnumWindowsProc callback, IntPtr context);
+
+    [DllImport("user32.dll")]
+    internal static extern int IsWindowVisible(IntPtr window);
+
+    [DllImport("user32.dll")]
+    internal static extern int IsIconic(IntPtr window);
+
+    [DllImport("user32.dll")]
+    internal static extern int GetWindowLongW(IntPtr window, int index);
+
+    [DllImport("user32.dll")]
+    internal static extern int GetWindowRect(IntPtr window, out WinRect rect);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int GetWindowTextW(IntPtr window, StringBuilder buffer, int maxLength);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int GetClassNameW(IntPtr window, StringBuilder buffer, int maxLength);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    internal static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeoutMs, out IntPtr result);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
+
+    [DllImport("kernel32.dll")]
+    internal static extern IntPtr OpenProcess(int access, bool inherit, uint processId);
+
+    [DllImport("kernel32.dll")]
+    internal static extern int GetProcessTimes(IntPtr process, out uint createLow, out uint createHigh, out uint exitLow, out uint exitHigh);
+
+    [DllImport("kernel32.dll")]
+    internal static extern int CloseHandle(IntPtr handle);
+
+    [DllImport("kernel32.dll")]
+    internal static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int Process32FirstW(IntPtr snapshot, ref ProcessEntry entry);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int Process32NextW(IntPtr snapshot, ref ProcessEntry entry);
+}
+
+/// <summary>A screen rectangle as the platform reports it: two corners, not a size.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct WinRect
+{
+    internal int Left;
+    internal int Top;
+    internal int Right;
+    internal int Bottom;
+}
+
+/// <summary>One row of the ToolHelp process table, in the field order the platform declares.</summary>
+[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+internal struct ProcessEntry
+{
+    internal uint Size;
+    internal uint Usage;
+    internal uint ProcessId;
+    internal uint ParentProcessId;
+    internal int PriorityClass;
+    internal uint Flags;
+
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+    internal string Name;
+}

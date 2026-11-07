@@ -9,14 +9,14 @@ using AgentDesktop.Windows.Uia;
 
 namespace AgentDesktop.Windows.Tree;
 
-/// <summary>The observation capability of the Windows adapter: a window's accessibility
-/// tree, read through UI Automation. A window root on the window surface is read; every
-/// other root and surface is refused with a documented code. Every other observation
-/// method keeps core's refusal.</summary>
-public class TreeAdapter : ObservationOps
+/// <summary>The observation capability of the Windows adapter: a window's accessibility tree, read
+/// through UI Automation. The owner is verified on the handle before and after the walk, so a window
+/// replaced by a recycled handle mid-observation cannot be reported as the window the caller asked
+/// for. Every other observation method keeps core's refusal.</summary>
+public sealed class TreeAdapter : ObservationOps
 {
-    /// <summary>A tree that ran out of budget is returned with complete=false and the
-    /// nodes it did see. An enumeration fault fails the observation instead.</summary>
+    /// <summary>A tree that ran out of budget is returned with complete=false and the nodes it did
+    /// see. An enumeration fault fails the observation instead.</summary>
     public ObservedTree ObserveTree(ObservationRoot root, ObservationRequest request)
     {
         var window = WindowRoot.Validate(root, request.Options.Surface);
@@ -26,15 +26,17 @@ public class TreeAdapter : ObservationOps
         using var source = UiaTreeSource.Create(client, request.Options.IncludeBounds);
         using var element = WindowRoot.Resolve(client, handle, request.Deadline);
         var walk = new Walk<Element>(source, WalkBudget.For(request.Options, request.Deadline));
-        var observed = walk.Run(source.PrepareRoot(element));
+        var observed = walk.Run(element);
         WindowRoot.VerifyOwner(handle, window);
         return observed;
     }
 
-    /// <summary>The whole tree or an error: an observation that ran out of budget is a
-    /// TIMEOUT here, never a partial tree.</summary>
+    /// <summary>The whole tree or an error: an observation that ran out of budget is a TIMEOUT here,
+    /// never a partial tree.</summary>
     public AccessibilityNode GetTree(WindowInfo window, TreeOptions options, Deadline deadline) =>
-        WholeTree(ObserveTree(new ObservationRoot(window, null, options.Surface), new ObservationRequest(options, deadline)));
+        WholeTree(ObserveTree(
+            new ObservationRoot(window, null, options.Surface),
+            new ObservationRequest(options, deadline)));
 
     internal static AccessibilityNode WholeTree(ObservedTree observed)
     {
@@ -48,8 +50,7 @@ public class TreeAdapter : ObservationOps
         return observed.Root;
     }
 
-    /// <summary>Observation is refused rather than run against a client whose calls cannot
-    /// time out.</summary>
+    /// <summary>Observation is refused rather than run against a client whose calls cannot time out.</summary>
     private static Client BoundedClient()
     {
         var hr = Client.Create(out var client);

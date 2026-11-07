@@ -101,6 +101,55 @@ TEST_MODULE = re.compile(r"#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*(?:pub(?:\s*\([^
 
 STR = re.compile(r"__S(\d+)__")
 
+# --- C# side ---------------------------------------------------------------
+# The same boundaries for the csharp/ tree. The .csproj graph stands in for the Cargo
+# manifest graph, `using` directives and namespace literals for crate paths, and a
+# `partial class` declaration for the inline test module Rust declares with
+# `#[cfg(test)] #[path = "..."] mod tests;`. G11 has no C# analogue: C# has no
+# `#[path]` attribute, so a file cannot declare a source outside its folder.
+CS_PLATFORMS = ("windows", "macos", "linux")
+CS_PROJECT_SUFFIX = tuple(sorted(p.capitalize() for p in CS_PLATFORMS))
+CS_PLATFORM_PACKAGES = {f"AgentDesktop.{p}" for p in CS_PROJECT_SUFFIX}
+CS_WIRING_PACKAGES = {"AgentDesktop.Cli", "AgentDesktop.Ffi"}
+CS_CORE_PACKAGE = "AgentDesktop.Core"
+CS_PLATFORM_LAYERS = {"Tree", "Actions", "Input", "System", "Notifications"}
+CS_PLATFORM_FILES = {"Adapter.cs"}
+CS_PLATFORM_OPTIONAL = {"Uia"}
+CS_CORE_TOP_FILES = {"AgentDesktop.Core.csproj"}
+# A build-time analyzer is not a runtime dependency, so core may reference exactly this
+# one, and only with the marker that proves the assembly is never loaded into core.
+CS_ANALYZER_PACKAGE = "AgentDesktop.SourceGen"
+CS_CORE_DOMAINS = {"Actionability", "Actions", "Adapter", "Commands", "Context", "CursorOverlay",
+                   "Input", "Locator", "Notifications", "Refs", "Response", "Session", "Snapshot",
+                   "Storage", "Systems", "Trace", "Tree", "Wait"}
+CS_CAPABILITY_HOMES = {
+    "PlatformAdapter": ("Adapter.cs",),
+    "ObservationOps": ("Adapter.cs", "Tree/Adapter.cs"),
+    "ActionOps": ("Adapter.cs", "Actions/Adapter.cs"),
+    "InputOps": ("Adapter.cs", "Input/Adapter.cs"),
+    "SystemOps": ("Adapter.cs", "System/Adapter.cs"),
+}
+# Core files allowed to carry OS-conditional code. Every entry must still match, so the
+# list only shrinks on purpose. Paths are relative to csharp/src/AgentDesktop.Core.
+CS_OS_ALLOWLIST = set()
+CS_LISTENER_ALLOWLIST = set()
+CS_HOST_MARKER_ALLOWLIST = set()
+CS_TEST_FILE = re.compile(r"(^|/)tests/|Tests\.cs$|TestSupport")
+CS_TEST_MODULE = re.compile(r"\bpartial\s+class\s+([A-Za-z_][A-Za-z0-9_]*)")
+CS_LISTENER = re.compile(r"(?<![A-Za-z0-9_])(?:TcpListener|NamedPipeServerStream|UdpSocket|UnixDomainSocket)"
+                         r"(?:\s*\.\s*\w+|\s*\(|\s+[\w(])")
+CS_HOST_MARKER = "AGENT_DESKTOP_INTERNAL_COMMAND_HOST"
+CS_SPECIAL = re.compile(r"//|/\*|\"|'")
+# The C# surface that is OS-conditional: a platform import, an OS guard attribute, a
+# runtime OS probe, a Windows-only target framework, a Windows UI framework, or the
+# Windows registry. Core must carry none of them.
+OS_TOKENS = ("DllImport(\"user32", "RuntimeInformation.IsOSPlatform", "OSPlatform.Windows",
+             "NamespaceInteropServices", "SupportedOSPlatform", "OperatingSystem", "IsWindows",
+             "IsMacOS", "IsLinux", "net8.0-windows", "UseWindowsForms", "System.Windows",
+             "System.Threading", "Microsoft.Win32", "Registry")
+OS_GUARD = re.compile(r"(?<![A-Za-z0-9_])(?:SupportedOSPlatform|DllImport|RuntimeInformation|"
+                      r"OperatingSystem|NamespaceInteropServices)(?![A-Za-z0-9_])")
+
 
 class Source:
     """A Rust file as code (comments blanked, literals as __S<n>__) plus decoded literals."""
@@ -222,6 +271,125 @@ def rs_files(root):
                 yield os.path.join(base, f)
 
 
+def cs_files(root):
+    """Every C# source under a root. `bin` and `obj` are build output, not source."""
+    for base, dirs, files in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if d not in ("bin", "obj", ".git", "node_modules"))
+        for f in sorted(files):
+            if f.endswith(".cs"):
+                yield os.path.join(base, f)
+
+
+def cs_decode(body):
+    out, i = [], 0
+    simple = {"n": "\n", "r": "\r", "t": "\t", "\\": "\\", "0": "\0", "'": "'", '"': '"', "a": "\a", "f": "\f", "v": "\v"}
+    while i < len(body):
+        c = body[i]
+        if c != "\\":
+            out.append(c)
+            i += 1
+            continue
+        nxt = body[i + 1] if i + 1 < len(body) else ""
+        if nxt in simple:
+            out.append(simple[nxt])
+            i += 2
+        elif nxt == "x":
+            end = i + 2
+            while end < len(body) and body[end] in "0123456789abcdefABCDEF":
+                end += 1
+            out.append(chr(int(body[i + 2:end], 16)) if end > i + 2 else "")
+            i = end
+        elif nxt == "u":
+            out.append(chr(int(body[i + 2:i + 6], 16)))
+            i += 6
+        else:
+            out.append(nxt)
+            i += 2
+    return "".join(out)
+
+
+def cs_lex(src):
+    """Return (code, literals): comments become spaces (newlines kept), every string
+    literal - regular, verbatim, interpolated, raw - becomes a __S<n>__ placeholder."""
+    out, lits, i, n = [], [], 0, len(src)
+    while i < n:
+        m = CS_SPECIAL.search(src, i)
+        if m is None:
+            out.append(src[i:])
+            break
+        s = m.start()
+        out.append(src[i:s])
+        if src.startswith("//", s):
+            j = src.find("\n", s)
+            j = n if j < 0 else j
+            out.append(" " * (j - s))
+            i = j
+            continue
+        if src.startswith("/*", s):
+            depth, j = 1, s + 2
+            while j < n and depth:
+                nxt = src.find("/*", j)
+                cls = src.find("*/", j)
+                if cls < 0:
+                    j = n
+                    break
+                if 0 <= nxt < cls:
+                    depth, j = depth + 1, nxt + 2
+                else:
+                    depth, j = depth - 1, cls + 2
+            out.append("".join(ch if ch == "\n" else " " for ch in src[s:j]))
+            i = j
+            continue
+        if src[s] == '"':
+            head = src[max(0, s - 6):s]
+            if src.startswith('"""', s):
+                j = src.find('"""', s + 3)
+                j = n if j < 0 else j
+                lits.append(src[s + 3:j])
+                i = j + 3
+                out.append(f"__S{len(lits) - 1}__")
+                continue
+            verbatim = head.endswith("@")
+            j = s + 1
+            while j < n:
+                if src[j] == '"':
+                    if verbatim and j + 1 < n and src[j + 1] == '"':
+                        j += 2
+                        continue
+                    break
+                j += 1 if verbatim else (2 if src[j] == "\\" else 1)
+            body = src[s + 1:j]
+            lits.append(body.replace('""', '"') if verbatim else cs_decode(body))
+            i = j + 1
+            out.append(f"__S{len(lits) - 1}__")
+            continue
+        if src[s] == "'":
+            ch = re.match(r"(?:\\.|[^\\'\n])'", src[s + 1:s + 6])
+            if ch:
+                out.append("' '")
+                i = s + 1 + ch.end()
+                continue
+            out.append("'")
+            i = s + 1
+            continue
+        out.append(src[s])
+        i = s + 1
+    return "".join(out), lits
+
+
+class CsSource:
+    """A C# file as code (comments blanked, literals as __S<n>__) plus decoded literals."""
+
+    def __init__(self, path):
+        self.path = path
+        with open(path, encoding="utf-8") as fh:
+            self.code, self.lits = cs_lex(fh.read())
+
+    def lit(self, token):
+        m = STR.fullmatch(token.strip())
+        return self.lits[int(m.group(1))] if m else None
+
+
 def has_files(path):
     """Directories that hold no file are leftovers git does not track."""
     return any(files for _, _, files in os.walk(path))
@@ -292,12 +460,223 @@ def cargo_packages(repo):
     cargo = shutil.which("cargo")
     if cargo is None:
         raise SystemExit("check_architecture: cargo is required to read the manifests (cargo metadata)")
+    # The self-test rebuilds the same manifests dozens of times; re-running cargo
+    # for each plant is the gate's whole cost, so the read is cached on the manifest
+    # content, which is exactly what cargo sees.
+    key = tuple((p, open(p, "rb").read()) for p in sorted(
+        os.path.join(base, f) for base, dirs, files in os.walk(repo)
+        for f in files if f.endswith(".toml")))
+    if key in _cargo_cache:
+        return _cargo_cache[key]
     out = subprocess.run([cargo, "metadata", "--format-version", "1", "--no-deps", "--offline",
                           "--manifest-path", os.path.join(repo, "Cargo.toml")],
                          capture_output=True, text=True)
     if out.returncode != 0:
         raise SystemExit("check_architecture: cargo metadata failed:\n" + out.stderr)
-    return json.loads(out.stdout)["packages"]
+    packages = json.loads(out.stdout)["packages"]
+    _cargo_cache[key] = packages
+    return packages
+
+
+_cargo_cache = {}
+
+
+def cs_projects(repo):
+    """Every .csproj under csharp/, keyed by its own real path, with the references and
+    properties Cargo reads for the Rust side."""
+    root = os.path.normpath(os.path.join(repo, "csharp"))
+    projects = {}
+    for base, dirs, files in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if d not in ("bin", "obj", ".git"))
+        for f in files:
+            if not f.endswith(".csproj"):
+                continue
+            path = os.path.join(base, f)
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+            name = re.search(r"<AssemblyName>([^<]*)</AssemblyName>", text)
+            projects[os.path.normpath(path)] = {
+                "name": name.group(1) if name else os.path.basename(path)[:-7],
+                "path": path,
+                "folder": os.path.normpath(base),
+                "refs": re.findall(r"<ProjectReference[^>]*Include=\"([^\"]+)\"([^>]*)/?>", text),
+                "pkgs": re.findall(r"<PackageReference[^>]*Include=\"([^\"]+)\"", text),
+                "tfm": re.findall(r"<TargetFramework>([^<]*)</TargetFramework>", text),
+                "flags": re.findall(r"<(UseWindowsForms|UseWPF)>", text),
+            }
+    return projects
+
+
+def cs_identity(name):
+    if name == CS_CORE_PACKAGE:
+        return "core"
+    if name in CS_PLATFORM_PACKAGES:
+        return "platform"
+    if name in CS_WIRING_PACKAGES:
+        return "wiring"
+    return "other"
+
+
+def check_csharp(repo):
+    """The same boundaries for csharp/: project graph, source reach, OS-conditional code,
+    layout, capability homes, test placement, and listeners."""
+    errors = []
+
+    def err(rule, msg):
+        errors.append(f"{rule}: {msg}")
+
+    src_root = os.path.normpath(os.path.join(repo, "csharp"))
+    projects = cs_projects(repo)
+    if not projects:
+        return errors
+
+    for folder, p in projects.items():
+        rel = os.path.relpath(p["path"], repo).replace(os.sep, "/")
+        ident = cs_identity(p["name"])
+        for ref, tail in p["refs"]:
+            target = os.path.normpath(os.path.join(p["folder"], ref.replace("\\", os.sep)))
+            tp = projects.get(target)
+            tname = tp["name"] if tp else os.path.basename(ref)
+            analyzer = "ReferenceOutputAssembly=\"false\"" in tail
+            if analyzer and tname == CS_ANALYZER_PACKAGE:
+                continue
+            if ident == "core":
+                err("G1", f"{rel} references {tname}; core references no project")
+            elif ident == "platform" and tname != CS_CORE_PACKAGE:
+                err("G1", f"{rel} references {tname}; a platform project references only {CS_CORE_PACKAGE}")
+            elif ident == "other" and tname in CS_PLATFORM_PACKAGES:
+                if p["name"] == f"{tname}.Tests":
+                    continue
+                err("G1", f"{rel} references {tname}; only {sorted(CS_WIRING_PACKAGES)} wire platform projects")
+        if ident == "core":
+            if p["pkgs"]:
+                err("G2", f"{rel} depends on {', '.join(sorted(p['pkgs']))}; core references nothing")
+            for tfm in p["tfm"]:
+                if re.search(r"-(windows|linux|osx|macos)", tfm):
+                    err("G2", f"{rel} targets {tfm}; core targets a single portable TFM")
+            for flag in p["flags"]:
+                err("G2", f"{rel} sets {flag}; core carries no platform UI framework")
+            for f in sorted(os.listdir(p["folder"])):
+                if f.endswith(".props") or f.endswith(".targets"):
+                    err("G2", f"{rel} has {f}, a build script; core has none")
+
+    sources = {f: CsSource(f) for f in cs_files(src_root)}
+    proj_dir = {p: os.path.normpath(os.path.join(src_root, "src", f"AgentDesktop.{p}"))
+                for p in ("Core",) + CS_PROJECT_SUFFIX}
+
+    for owner in ("Core",) + CS_PROJECT_SUFFIX:
+        banned = sorted(set(CS_PROJECT_SUFFIX) - {owner})
+        for f, src in sources.items():
+            if not os.path.normpath(f).startswith(proj_dir[owner] + os.sep):
+                continue
+            rel = os.path.relpath(f, repo).replace(os.sep, "/")
+            for b in banned:
+                if re.search(rf"(?<![A-Za-z0-9_])AgentDesktop\.{b}(?![A-Za-z0-9_])", src.code):
+                    err("G3", f"{rel} names AgentDesktop.{b}")
+                for lit in src.lits:
+                    if lit and lit.startswith("../") and lit.endswith(".cs"):
+                        target = os.path.normpath(os.path.normpath(
+                            os.path.join(os.path.dirname(f), lit.replace("\\", os.sep))))
+                        if target.startswith(proj_dir[b] + os.sep):
+                            err("G4", f"{rel} reads {lit}, inside the {b} project")
+
+    core_dir = proj_dir["Core"]
+    seen = set()
+    for f, src in sources.items():
+        if not os.path.normpath(f).startswith(core_dir + os.sep):
+            continue
+        rel = os.path.relpath(f, core_dir).replace(os.sep, "/")
+        hits = [t for t in OS_TOKENS if t in src.code]
+        if OS_GUARD.search(src.code):
+            hits.append("OS guard attribute")
+        if hits:
+            if rel in CS_OS_ALLOWLIST:
+                seen.add(rel)
+            else:
+                err("G5", f"csharp/src/AgentDesktop.Core/{rel} carries OS-conditional code "
+                          f"({', '.join(sorted(set(hits)))}); keep it behind PlatformAdapter, "
+                          "or add the file to CS_OS_ALLOWLIST in review")
+    for stale in sorted(CS_OS_ALLOWLIST - seen):
+        err("G5", f"CS_OS_ALLOWLIST lists csharp/src/AgentDesktop.Core/{stale}, which no longer "
+                  "carries OS-conditional code")
+
+    for p in CS_PROJECT_SUFFIX:
+        top = proj_dir[p]
+        if not os.path.isdir(top):
+            continue
+        entries = {e for e in os.listdir(top) if e not in ("bin", "obj")
+                   and (os.path.isfile(os.path.join(top, e)) or has_files(os.path.join(top, e)))}
+        allowed = CS_PLATFORM_LAYERS | CS_PLATFORM_FILES | CS_PLATFORM_OPTIONAL | {f"AgentDesktop.{p}.csproj"}
+        for extra in sorted(entries - allowed):
+            err("G6", f"csharp/src/AgentDesktop.{p}/{extra} is outside the shared layout "
+                      f"{sorted(CS_PLATFORM_LAYERS | CS_PLATFORM_FILES)}")
+
+    if os.path.isdir(core_dir):
+        entries = {e for e in os.listdir(core_dir) if e not in ("bin", "obj")
+                   and (os.path.isfile(os.path.join(core_dir, e)) or has_files(os.path.join(core_dir, e)))}
+        for extra in sorted(entries - CS_CORE_TOP_FILES - CS_CORE_DOMAINS):
+            err("G7", f"csharp/src/AgentDesktop.Core/{extra} is outside the shared layout "
+                      f"{sorted(CS_CORE_DOMAINS)}")
+
+    cap = "|".join(CS_CAPABILITY_HOMES)
+    impl_re = re.compile(rf"\bclass\b[^{{;]*?:[^{{;]*?(?<![A-Za-z0-9_])({cap})(?![A-Za-z0-9_])")
+    alias_re = re.compile(rf"(?<![A-Za-z0-9_])({cap})\s+as\s+(?!_(?![A-Za-z0-9_]))[A-Za-z_]")
+    for p in CS_PROJECT_SUFFIX:
+        top = proj_dir[p]
+        for f, src in sources.items():
+            if not os.path.normpath(f).startswith(top + os.sep):
+                continue
+            rel = os.path.relpath(f, top).replace(os.sep, "/")
+            if alias_re.search(src.code):
+                err("G8", f"csharp/src/AgentDesktop.{p}/{rel} renames a capability with `as`")
+            for m in impl_re.finditer(src.code):
+                if rel not in CS_CAPABILITY_HOMES[m.group(1)]:
+                    err("G8", f"csharp/src/AgentDesktop.{p}/{rel} implements {m.group(1)}; it belongs in "
+                              f"{' or '.join(CS_CAPABILITY_HOMES[m.group(1)])} "
+                              "(test doubles go in a *_Tests.cs beside a partial class)")
+
+    for f, src in sources.items():
+        if not os.path.normpath(f).startswith(core_dir + os.sep):
+            continue
+        rel = os.path.relpath(f, core_dir).replace(os.sep, "/")
+        if rel.startswith("Commands/") or rel.endswith("Tests.cs"):
+            continue
+        if re.search(r"(?<![A-Za-z0-9_])AgentDesktop\.Core\.Commands(?![A-Za-z0-9_])", src.code):
+            err("G9", f"csharp/src/AgentDesktop.Core/{rel} reaches the Commands domain; core domains "
+                      "must not depend on command code")
+
+    for f, src in sources.items():
+        base = os.path.basename(f)
+        if not base.endswith("Tests.cs"):
+            continue
+        rel = os.path.relpath(f, repo).replace(os.sep, "/")
+        if "tests" in rel.split("/")[:-1]:
+            continue
+        names = [m.group(1) for m in CS_TEST_MODULE.finditer(src.code)]
+        if not names:
+            err("G10", f"{rel} declares no partial class; it does not compile into the code it tests")
+            continue
+        for name in names:
+            owner = os.path.join(os.path.dirname(f), name + ".cs")
+            if not os.path.isfile(owner):
+                err("G10", f"{rel} extends {name}, whose file is not beside it")
+
+    serving = set()
+    for f, src in sources.items():
+        rel = os.path.relpath(f, repo).replace(os.sep, "/")
+        if CS_TEST_FILE.search(rel):
+            continue
+        if CS_LISTENER.search(src.code):
+            if rel in CS_LISTENER_ALLOWLIST:
+                serving.add(rel)
+            else:
+                err("G12", f"{rel} opens a listener or server; every call is its own process and serves "
+                           "nothing, so a new server needs a CS_LISTENER_ALLOWLIST entry in review")
+        if rel not in CS_HOST_MARKER_ALLOWLIST and any(CS_HOST_MARKER in lit for lit in src.lits):
+            err("G12", f"{rel} names {CS_HOST_MARKER}, the marker of the removed command host")
+    for stale in sorted(CS_LISTENER_ALLOWLIST - serving):
+        err("G12", f"CS_LISTENER_ALLOWLIST lists {stale}, which no longer opens a listener")
+    return errors
 
 
 def check(repo):
@@ -328,11 +707,11 @@ def check(repo):
         for f in rs_files(root):
             sources[f] = Source(f)
 
-    crate_dir = {p: os.path.realpath(os.path.join(repo, "crates", p)) for p in PLATFORMS + ("core",)}
+    crate_dir = {p: os.path.normpath(os.path.join(repo, "crates", p)) for p in PLATFORMS + ("core",)}
     for owner in ("core",) + PLATFORMS:
         banned = PLATFORMS if owner == "core" else tuple(p for p in PLATFORMS if p != owner)
         for f, src in sources.items():
-            if not os.path.realpath(f).startswith(crate_dir[owner] + os.sep):
+            if not os.path.normpath(f).startswith(crate_dir[owner] + os.sep):
                 continue
             rel = os.path.relpath(f, repo)
             for b in banned:
@@ -343,7 +722,7 @@ def check(repo):
                 if lit is None:
                     err("G4", f"{rel} computes the path of {macro}; only a plain string literal is allowed")
                     continue
-                target = os.path.realpath(os.path.join(os.path.dirname(f), lit))
+                target = os.path.normpath(os.path.join(os.path.dirname(f), lit))
                 for b in banned:
                     if target.startswith(crate_dir[b] + os.sep):
                         err("G4", f"{rel} reads {lit}, inside the {b} crate")
@@ -468,14 +847,14 @@ def check(repo):
             err("G9", f"crates/core/src/{rel} reaches the commands module; core domains must not depend on command code")
 
     for f, src in sources.items():
-        here = os.path.realpath(os.path.dirname(f))
+        here = os.path.normpath(os.path.dirname(f))
         rel = os.path.relpath(f, repo)
         for lit, _, _ in path_attrs(src):
             if lit is None:
                 continue
-            target = os.path.realpath(os.path.join(here, lit))
+            target = os.path.normpath(os.path.join(here, lit))
             inside = target.startswith(here + os.sep)
-            in_tests = "tests" in os.path.relpath(target, os.path.realpath(repo)).split(os.sep)[:-1]
+            in_tests = "tests" in os.path.relpath(target, os.path.normpath(repo)).split(os.sep)[:-1]
             if not (inside or in_tests):
                 err("G11", f"{rel}: #[path = \"{lit}\"] leaves its folder; keep the file beside its declarer or under a tests/ folder")
 
@@ -494,6 +873,7 @@ def check(repo):
         owner = os.path.join(os.path.dirname(os.path.dirname(f)), os.path.basename(os.path.dirname(f)) + ".rs")
         if not (same or os.path.normpath(declarer) == os.path.normpath(owner)):
             err("G10", f"{rel} is declared from {os.path.relpath(declarer, repo)}; tests live beside the code they test")
+    errors += check_csharp(repo)
     return errors
 
 
@@ -593,34 +973,137 @@ PLANTS["G12"] = [
 SUPPORT = {"G2": {"crates/core/custom.rs": "fn main() {}\n"},
            "G8": {"crates/linux/src/input/real_tests.rs": "impl SystemOps for crate::adapter::A {}\n"}}
 
+# The C# clean fixture: the same shape the csharp/ tree must hold. Every domain folder
+# carries one file, every platform project carries Adapter.cs plus the five layers, and
+# each capability is implemented in its home.
+CLEAN_CS = {
+    "csharp/src/AgentDesktop.Core/AgentDesktop.Core.csproj":
+        '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework>'
+        '<RootNamespace>AgentDesktop.Core</RootNamespace><AssemblyName>AgentDesktop.Core</AssemblyName>'
+        '</PropertyGroup><ItemGroup>'
+        '<ProjectReference Include="../../tools/AgentDesktop.SourceGen/AgentDesktop.SourceGen.csproj" '
+        'OutputItemType="Analyzer" ReferenceOutputAssembly="false" /></ItemGroup></Project>\n',
+    "csharp/tools/AgentDesktop.SourceGen/AgentDesktop.SourceGen.csproj":
+        '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.0</TargetFramework>'
+        '<RootNamespace>AgentDesktop.SourceGen</RootNamespace><AssemblyName>AgentDesktop.SourceGen</AssemblyName>'
+        '</PropertyGroup></Project>\n',
+    "csharp/tools/AgentDesktop.SourceGen/Writer.cs":
+        "namespace AgentDesktop.SourceGen;\npublic sealed class Writer;\n",
+}
+for _d in sorted(CS_CORE_DOMAINS):
+    CLEAN_CS[f"csharp/src/AgentDesktop.Core/{_d}/{_d}.cs"] = (
+        f"namespace AgentDesktop.Core.{_d};\npublic sealed class {_d};\n")
+for _p in CS_PROJECT_SUFFIX:
+    CLEAN_CS[f"csharp/src/AgentDesktop.{_p}/AgentDesktop.{_p}.csproj"] = (
+        f'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework>'
+        f'<RootNamespace>AgentDesktop.{_p}</RootNamespace><AssemblyName>AgentDesktop.{_p}</AssemblyName>'
+        f'</PropertyGroup><ItemGroup>'
+        f'<ProjectReference Include="../AgentDesktop.Core/AgentDesktop.Core.csproj" /></ItemGroup></Project>\n')
+    CLEAN_CS[f"csharp/src/AgentDesktop.{_p}/Adapter.cs"] = (
+        f"namespace AgentDesktop.{_p};\npublic sealed partial class Adapter : "
+        f"AgentDesktop.Core.Adapter.PlatformAdapter {{}}\n")
+    for _layer, _trait in (("Tree", "ObservationOps"), ("Actions", "ActionOps"),
+                           ("Input", "InputOps"), ("System", "SystemOps")):
+        CLEAN_CS[f"csharp/src/AgentDesktop.{_p}/{_layer}/Adapter.cs"] = (
+            f"namespace AgentDesktop.{_p};\npublic sealed partial class Adapter : "
+            f"AgentDesktop.Core.Adapter.{_trait} {{}}\n")
+    CLEAN_CS[f"csharp/src/AgentDesktop.{_p}/Notifications/NotificationInfo.cs"] = (
+        f"namespace AgentDesktop.{_p}.Notifications;\npublic sealed class NotificationInfo;\n")
+CLEAN_CS["csharp/src/AgentDesktop.Windows/Uia/Client.cs"] = (
+    "namespace AgentDesktop.Windows.Uia;\npublic sealed class Client;\n")
+
+CS_CORE = "csharp/src/AgentDesktop.Core/AgentDesktop.Core.csproj"
+CS_WIN = "csharp/src/AgentDesktop.Windows/AgentDesktop.Windows.csproj"
+
+CS_PLANTS = {
+    "G1": [(CS_WIN, CLEAN_CS[CS_WIN].replace('</ItemGroup>',
+              '<ProjectReference Include="../AgentDesktop.Linux/AgentDesktop.Linux.csproj" /></ItemGroup>')),
+           (CS_CORE, CLEAN_CS[CS_CORE].replace('</ItemGroup>',
+              '<ProjectReference Include="../AgentDesktop.Windows/AgentDesktop.Windows.csproj" /></ItemGroup>')),
+           ("csharp/src/AgentDesktop.Extra/AgentDesktop.Extra.csproj",
+            '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework>'
+            '<AssemblyName>AgentDesktop.Extra</AssemblyName></PropertyGroup><ItemGroup>'
+            '<ProjectReference Include="../AgentDesktop.Windows/AgentDesktop.Windows.csproj" /></ItemGroup></Project>'),
+           ("csharp/tests/AgentDesktop.Windows.Tests/AgentDesktop.Windows.Tests.csproj",
+            '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework>'
+            '<AssemblyName>AgentDesktop.Windows.Tests</AssemblyName></PropertyGroup><ItemGroup>'
+            '<ProjectReference Include="../../src/AgentDesktop.Linux/AgentDesktop.Linux.csproj" /></ItemGroup></Project>')],
+    "G2": [(CS_CORE, CLEAN_CS[CS_CORE].replace('</PropertyGroup>',
+              '<ItemGroup><PackageReference Include="System.Text.Json" Version="8.0.0" /></ItemGroup></PropertyGroup>')),
+           (CS_CORE, CLEAN_CS[CS_CORE].replace('net8.0', 'net8.0-windows')),
+           (CS_CORE, CLEAN_CS[CS_CORE].replace('<AssemblyName>', '<UseWindowsForms>true</UseWindowsForms><AssemblyName>')),
+           ("csharp/src/AgentDesktop.Core/Directory.Build.props", "<Project></Project>\n")],
+    "G3": [("csharp/src/AgentDesktop.Core/Tree/Leak.cs", "namespace AgentDesktop.Core.Tree;\nusing AgentDesktop.Windows;\npublic sealed class Leak;\n"),
+           ("csharp/src/AgentDesktop.Windows/Tree/Leak.cs", "namespace AgentDesktop.Windows.Tree;\nusing AgentDesktop.Linux;\npublic sealed class Leak;\n")],
+    "G4": [("csharp/src/AgentDesktop.Core/Tree/Leak.cs",
+            "namespace AgentDesktop.Core.Tree;\npublic sealed class Leak { const string S = \"../../AgentDesktop.Windows/Uia/Client.cs\"; }\n"),
+           ("csharp/src/AgentDesktop.Core/Tree/Leak.cs",
+            "namespace AgentDesktop.Core.Tree;\npublic sealed class Leak { const string S = \"../../\\x41gentDesktop.Windows/Uia/Client.cs\"; }\n")],
+    "G5": [("csharp/src/AgentDesktop.Core/Tree/Leak.cs",
+            "namespace AgentDesktop.Core.Tree;\nusing System.Runtime.InteropServices;\npublic sealed class Leak { [DllImport(\"user32.dll\")] static extern int GetTickCount(); }\n"),
+           ("csharp/src/AgentDesktop.Core/Tree/Leak.cs",
+            "namespace AgentDesktop.Core.Tree;\npublic sealed class Leak { [SupportedOSPlatform(\"windows\")] static void F() {} }\n"),
+           ("csharp/src/AgentDesktop.Core/Tree/Leak.cs",
+            "namespace AgentDesktop.Core.Tree;\npublic sealed class Leak { static bool P => OperatingSystem.IsWindows(); }\n")],
+    "G6": [("csharp/src/AgentDesktop.Windows/Win32.cs", "namespace AgentDesktop.Windows;\npublic sealed class Win32;\n")],
+    "G7": [("csharp/src/AgentDesktop.Core/Loose.cs", "namespace AgentDesktop.Core;\npublic sealed class Loose;\n")],
+    "G8": [("csharp/src/AgentDesktop.Windows/Input/Keyboard.cs",
+            "namespace AgentDesktop.Windows;\npublic sealed partial class Adapter : AgentDesktop.Core.Adapter.SystemOps {}\n"),
+           ("csharp/src/AgentDesktop.Windows/Input/Keyboard.cs",
+            "using AgentDesktop.Core.Adapter.SystemOps as LifecycleOps;\nnamespace AgentDesktop.Windows;\npublic sealed partial class Adapter : LifecycleOps {}\n")],
+    "G9": [("csharp/src/AgentDesktop.Core/Tree/Leak.cs",
+            "namespace AgentDesktop.Core.Tree;\nusing AgentDesktop.Core.Commands;\npublic sealed class Leak;\n")],
+    "G10": [("csharp/src/AgentDesktop.Core/Tree/NodeTests.cs",
+             "namespace AgentDesktop.Core.Tree;\npublic sealed partial class Missing {}\n"),
+            ("csharp/src/AgentDesktop.Core/Tree/NodeTests.cs",
+             "namespace AgentDesktop.Core.Tree;\npublic sealed class NodeTests {}\n")],
+}
+CS_PLANTS["G12"] = [
+    ("csharp/src/AgentDesktop.Windows/System/Host.cs",
+     "namespace AgentDesktop.Windows.System;\nusing System.Net;\npublic sealed class Host { static void F() { var _ = new TcpListener(IPAddress.Any, 0); } }\n"),
+    ("csharp/src/AgentDesktop.Windows/System/Host.cs",
+     "namespace AgentDesktop.Windows.System;\npublic sealed class Host { const string M = \"AGENT_DESKTOP_INTERNAL_COMMAND_HOST=1\"; }\n"),
+]
+
 
 def self_test():
     """Plant one violation per case in a minimal clean workspace; every case must fire, the clean tree must pass."""
-    global CORE_OS_ALLOWLIST, LISTENER_ALLOWLIST
+    global CORE_OS_ALLOWLIST, LISTENER_ALLOWLIST, CS_OS_ALLOWLIST, CS_LISTENER_ALLOWLIST
     saved = CORE_OS_ALLOWLIST
     saved_listeners = LISTENER_ALLOWLIST
+    saved_cs = CS_OS_ALLOWLIST
+    saved_cs_listeners = CS_LISTENER_ALLOWLIST
     tmp = tempfile.mkdtemp(prefix="arch-selftest-")
     try:
+        def write(path, text):
+            full = os.path.join(tmp, path)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w", encoding="utf-8") as fh:
+                fh.write(text.replace("@ABS@", tmp.replace("\\", "/")))
+
         def build(overrides):
-            for e in os.listdir(tmp):
-                full = os.path.join(tmp, e)
-                if os.path.isdir(full):
-                    shutil.rmtree(full)
-                else:
-                    os.remove(full)
-            files = dict(CLEAN)
-            files.update(overrides)
-            for path, text in files.items():
-                if text is None:
-                    continue
+            for path, text in overrides.items():
                 full = os.path.join(tmp, path)
-                os.makedirs(os.path.dirname(full), exist_ok=True)
-                with open(full, "w", encoding="utf-8") as fh:
-                    fh.write(text.replace("@ABS@", tmp))
+                if text is None:
+                    if os.path.exists(full):
+                        os.remove(full)
+                else:
+                    write(path, text)
+
+        def restore(path):
+            original = CLEAN.get(path, CLEAN_CS.get(path))
+            full = os.path.join(tmp, path)
+            if original is None:
+                if os.path.exists(full):
+                    os.remove(full)
+            else:
+                write(path, original)
 
         CORE_OS_ALLOWLIST = set()
         LISTENER_ALLOWLIST = set()
-        build({})
+        CS_OS_ALLOWLIST = set()
+        CS_LISTENER_ALLOWLIST = set()
+        build(dict(CLEAN, **CLEAN_CS))
         clean = check(tmp)
         if clean:
             raise SystemExit("self-test: the clean fixture workspace reports violations:\n  " + "\n  ".join(clean))
@@ -631,18 +1114,40 @@ def self_test():
                 build(overrides)
                 if not [e for e in check(tmp) if e.startswith(rule + ":")]:
                     raise SystemExit(f"self-test: {rule} did not fire for its planted case in {path}")
+                for changed in overrides:
+                    restore(changed)
+        for rule, cases in CS_PLANTS.items():
+            for path, text in cases:
+                build({path: text})
+                if not [e for e in check(tmp) if e.startswith(rule + ":")]:
+                    raise SystemExit(f"self-test: {rule} did not fire for its planted C# case in {path}")
+                restore(path)
         CORE_OS_ALLOWLIST = {"tree/node.rs"}
-        build({})
         if not [e for e in check(tmp) if e.startswith("G5:") and "no longer" in e]:
             raise SystemExit("self-test: a stale CORE_OS_ALLOWLIST entry was not reported")
         CORE_OS_ALLOWLIST = set()
         LISTENER_ALLOWLIST = {"crates/core/src/lib.rs"}
-        build({})
         if not [e for e in check(tmp) if e.startswith("G12:") and "no longer" in e]:
             raise SystemExit("self-test: a stale LISTENER_ALLOWLIST entry was not reported")
+        LISTENER_ALLOWLIST = set()
+        CS_OS_ALLOWLIST = {"Tree/Node.cs"}
+        if not [e for e in check(tmp) if e.startswith("G5:") and "CS_OS_ALLOWLIST" in e]:
+            raise SystemExit("self-test: a stale CS_OS_ALLOWLIST entry was not reported")
+        CS_OS_ALLOWLIST = set()
+        CS_LISTENER_ALLOWLIST = {"csharp/src/AgentDesktop.Windows/System/Host.cs"}
+        build({"csharp/src/AgentDesktop.Windows/System/Host.cs":
+               "namespace AgentDesktop.Windows.System;\nusing System.Net;\npublic sealed class Host { static void F() { var _ = new TcpListener(IPAddress.Any, 0); } }\n"})
+        if [e for e in check(tmp) if e.startswith("G12:") and "CS_LISTENER_ALLOWLIST" in e]:
+            raise SystemExit("self-test: an allowlisted C# listener was reported")
+        restore("csharp/src/AgentDesktop.Windows/System/Host.cs")
+        CS_LISTENER_ALLOWLIST = {"csharp/src/AgentDesktop.Core/Tree/Node.cs"}
+        if not [e for e in check(tmp) if e.startswith("G12:") and "CS_LISTENER_ALLOWLIST" in e]:
+            raise SystemExit("self-test: a stale CS_LISTENER_ALLOWLIST entry was not reported")
     finally:
         CORE_OS_ALLOWLIST = saved
         LISTENER_ALLOWLIST = saved_listeners
+        CS_OS_ALLOWLIST = saved_cs
+        CS_LISTENER_ALLOWLIST = saved_cs_listeners
         shutil.rmtree(tmp, ignore_errors=True)
 
 

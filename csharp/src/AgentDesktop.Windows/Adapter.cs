@@ -1,10 +1,48 @@
 using AgentDesktop.Core.Adapter;
+using AgentDesktop.Core.Locator;
+using AgentDesktop.Core.Refs;
+using AgentDesktop.Core.Systems;
+using AgentDesktop.Core.Tree;
+using AgentDesktop.Core.Wait;
 using AgentDesktop.Windows.Tree;
+using AgentDesktop.Windows.Uia;
 
 namespace AgentDesktop.Windows;
 
-/// <summary>The Windows platform adapter. Observation comes from the tree layer; every
-/// action, input and system method keeps core's refusal until its layer implements it.</summary>
-public sealed class Adapter : TreeAdapter, PlatformAdapter
+/// <summary>The Windows adapter: UI Automation for observation, the top-level window census and the
+/// process table for app and window identity. Every method the adapter does not implement keeps
+/// core's refusal, so a surface the platform does not support fails closed.</summary>
+public sealed class WindowsAdapter : PlatformAdapter
 {
+    private readonly TreeAdapter _observation = new();
+
+    public ObservedTree ObserveTree(ObservationRoot root, ObservationRequest request) =>
+        _observation.ObserveTree(root, request);
+
+    public AccessibilityNode GetTree(WindowInfo window, TreeOptions options, Deadline deadline) =>
+        _observation.GetTree(window, options, deadline);
+
+    public List<WindowInfo> ListWindows(WindowFilter filter, Deadline deadline) => WindowCensus.Collect(filter);
+
+    public List<AppInfo> ListApps(Deadline deadline) => AppCensus.Collect().Apps;
+
+    public AppInfo? FocusedApp(Deadline deadline) => FocusedAppReader.Read();
+
+    public NativeHandle ResolveElementStrict(RefEntry entry, Deadline deadline)
+    {
+        var hr = Client.Create(out var client);
+        if (client is null)
+        {
+            throw UiaFailure.Error(hr, "create a UI Automation client whose calls are bounded");
+        }
+
+        using (client)
+        {
+            return ElementResolve.ResolveStrict(entry, client);
+        }
+    }
+
+    /// <summary>The provider reports a runtime id for every element, so a shallow capture can
+    /// re-identify its refs from the token recorded on the node.</summary>
+    public bool RetainsElementTokens() => true;
 }

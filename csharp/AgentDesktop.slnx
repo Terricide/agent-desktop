@@ -5,5 +5,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AgentDesktop.Tests/AgentDesktop.Tests.csproj" />
+    <Project Path="tests/AgentDesktop.Windows.Tests/AgentDesktop.Windows.Tests.csproj" />
   </Folder>
 </Solution>

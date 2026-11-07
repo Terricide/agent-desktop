@@ -15,4 +15,8 @@
     <ProjectReference Include="../AgentDesktop.Core/AgentDesktop.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentDesktop.Windows.Tests" />
+  </ItemGroup>
+
 </Project>
