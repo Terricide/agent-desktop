@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AgentDesktop.Windows</RootNamespace>
+    <AssemblyName>AgentDesktop.Windows</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- Core defines the adapter contract and every shared type. This project
+       references Core only: check-architecture.py fails it when it reaches
+       another platform project. -->
+
+  <ItemGroup>
+    <ProjectReference Include="../AgentDesktop.Core/AgentDesktop.Core.csproj" />
+  </ItemGroup>
+
+</Project>

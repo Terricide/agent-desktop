@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AgentDesktop.Core</RootNamespace>
+    <AssemblyName>AgentDesktop.Core</AssemblyName>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- Core defines the adapter contract and every shared type. It references no
+      platform project: check-architecture.py fails the build when it does. -->
+
+</Project>
