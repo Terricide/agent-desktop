@@ -1,34 +1,14 @@
-using System.Text.Json.Nodes;
-
 namespace AgentDesktop.Core.Response;
 
 /// <summary>The structured recovery hint the envelope carries. Appears only when retry is safe.</summary>
-public sealed record RecoveryHint(
+[AgentDesktop.Core.Response.EnvelopeSerialize]
+public sealed partial record RecoveryHint(
     string Strategy,
     bool Retryable,
     bool RequiresFreshSnapshot,
     long? RetryAfterMs)
 {
-    public JsonNode ToNode()
-    {
-        var hint = new JsonObject();
-        hint["strategy"] = Strategy;
-        hint["retryable"] = Retryable;
-        hint["requires_fresh_snapshot"] = RequiresFreshSnapshot;
-
-        if (RetryAfterMs.HasValue)
-        {
-            hint["retry_after_ms"] = RetryAfterMs.Value;
-        }
-
-        return hint;
-    }
-}
-
-public static class RecoveryHints
-{
-    /// <summary>Selects the strategy from the code and disposition; nothing is offered when retry is not safe.</summary>
-    public static RecoveryHint? For(ErrorCode code, DeliverySemantics disposition, JsonNode? details)
+    public static RecoveryHint? For(ErrorCode code, DeliverySemantics disposition, string? details)
     {
         if (disposition.Retry != Retry.Safe)
         {
@@ -58,18 +38,6 @@ public static class RecoveryHints
         return null;
     }
 
-    private static bool ProcessStateExited(JsonNode? details)
-    {
-        if (details is not JsonObject obj)
-        {
-            return false;
-        }
-
-        if (!obj.TryGetPropertyValue("process_state", out var state))
-        {
-            return false;
-        }
-
-        return state is JsonValue value && value.TryGetValue(out string? text) && text == "exited";
-    }
+    private static bool ProcessStateExited(string? details) =>
+        details is not null && details.Contains("\"process_state\":\"exited\"");
 }

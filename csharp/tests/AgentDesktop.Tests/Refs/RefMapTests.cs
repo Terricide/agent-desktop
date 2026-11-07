@@ -5,23 +5,26 @@ namespace AgentDesktop.Tests.Refs;
 
 public class RefMapTests
 {
-    private static RefEntryIdentity Identity(string role) =>
-        new() { Role = role, WindowKey = "w1" };
+    private static RefEntry Entry(string role) => new()
+    {
+        Identity = new RefEntryIdentity { Role = role, WindowKey = "w1" },
+        Capabilities = new RefCapabilities { UniqueAtCapture = true },
+    };
 
     [Fact]
     public void RefsAreAllocatedInCaptureOrder()
     {
         var map = new RefMap("s8f3k2p9");
-        Assert.Equal("e1", map.Add(new RefProcess(), Identity("Button"), new RefGeometry()));
-        Assert.Equal("e2", map.Add(new RefProcess(), Identity("CheckBox"), new RefGeometry()));
-        Assert.Equal("e3", map.Add(new RefProcess(), Identity("Slider"), new RefGeometry()));
+        Assert.Equal("e1", map.Add(Entry("Button")));
+        Assert.Equal("e2", map.Add(Entry("CheckBox")));
+        Assert.Equal("e3", map.Add(Entry("Slider")));
     }
 
     [Fact]
     public void OnlyTheSnapshotQualifiedFormIsAccepted()
     {
         var map = new RefMap("s8f3k2p9");
-        map.Add(new RefProcess(), Identity("Button"), new RefGeometry());
+        map.Add(Entry("Button"));
         Assert.NotNull(map.Find("@s8f3k2p9:e1"));
         Assert.Null(map.Find("@e1"));
     }
@@ -30,7 +33,7 @@ public class RefMapTests
     public void ARefFromAnotherSnapshotDoesNotResolve()
     {
         var map = new RefMap("s8f3k2p9");
-        map.Add(new RefProcess(), Identity("Button"), new RefGeometry());
+        map.Add(Entry("Button"));
         Assert.Null(map.Find("@other:e1"));
     }
 }

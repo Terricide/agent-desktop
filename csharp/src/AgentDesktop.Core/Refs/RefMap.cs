@@ -11,16 +11,32 @@ public sealed class RefMap
         SnapshotId = snapshotId;
     }
 
-    public string SnapshotId { get; }
+    public RefMap()
+    {
+        SnapshotId = "";
+    }
+
+    public string SnapshotId { get; init; }
 
     public int Count => _entries.Count;
 
+    public List<RefEntry> Entries => _entries;
+
+    /// <summary>Rebuilds a map from its stored document. Entry order is ref order, so e1 is
+    /// the first entry.</summary>
+    public static RefMap FromDocument(Storage.RefMapDocument document)
+    {
+        var map = new RefMap(document.SnapshotId);
+        map._entries.AddRange(document.Entries);
+        return map;
+    }
+
     /// <summary>Allocates the next ref and returns it. The ref is the map key, not entry
     /// state, so an entry carries no ref of its own.</summary>
-    public string Add(RefProcess process, RefEntryIdentity identity, RefGeometry geometry)
+    public string Add(RefEntry entry)
     {
         var reference = "e" + (_entries.Count + 1);
-        _entries.Add(new RefEntry { Process = process, Identity = identity, Geometry = geometry });
+        _entries.Add(entry);
         return reference;
     }
 

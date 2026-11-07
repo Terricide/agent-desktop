@@ -1,4 +1,5 @@
 namespace AgentDesktop.Core.Tree;
 
-/// <summary>A provider-supplied element identifier, paired with the kind it came from.</summary>
-public sealed record ElementIdentifier(IdentifierKind Kind, string Value);
+/// <summary>A provider identifier: the kind of identifier and the value the provider reported.</summary>
+[AgentDesktop.Core.Response.EnvelopeSerialize]
+public sealed partial record ElementIdentifier(IdentifierKind Kind, string Value);

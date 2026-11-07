@@ -24,17 +24,54 @@ METHOD = re.compile(r"^\s*(?:(?:public|internal|private|protected|static|virtual
 
 
 def strip_doc_comments(text):
-    """Keep XML doc comments, blank out everything a comment rule must reject."""
+    """Report comment markers that are real code comments, not text inside a literal."""
     violations = []
-    lines = text.splitlines()
-    for index, line in enumerate(lines, start=1):
-        stripped = line.strip()
-        if stripped.startswith(DOC_COMMENT):
-            continue
-        if "//" in line:
-            violations.append((index, "inline comment"))
-        if "/*" in line:
-            violations.append((index, "block comment"))
+    index = 0
+    line = 1
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if char == "\n":
+            line += 1
+            index += 1
+        elif text.startswith('"""', index):
+            end = text.find('"""', index + 3)
+            stop = length if end < 0 else end + 3
+            line += text.count("\n", index, stop)
+            index = stop
+        elif char in "\"'":
+            verbatim = index > 0 and text[index - 1] == "@"
+            index += 1
+            while index < length:
+                if text[index] == "\\" and not verbatim:
+                    index += 2
+                elif text[index] == char:
+                    if verbatim and index + 1 < length and text[index + 1] == char:
+                        index += 2
+                    else:
+                        index += 1
+                        break
+                elif text[index] == "\n":
+                    line += 1
+                    index += 1
+                else:
+                    index += 1
+        elif text.startswith("//", index):
+            if text.startswith("///", index) or text.startswith("//!", index):
+                end = text.find("\n", index)
+                index = length if end < 0 else end
+            else:
+                violations.append((line, "inline comment"))
+                end = text.find("\n", index)
+                index = length if end < 0 else end
+        elif text.startswith("/*", index):
+            violations.append((line, "block comment"))
+            end = text.find("*/", index + 2)
+            stop = length if end < 0 else end + 2
+            line += text.count("\n", index, stop)
+            index = stop
+        else:
+            index += 1
     return violations
 
 
@@ -115,8 +152,12 @@ def self_test():
             f"    public int F{i} {{ get; init; }}\n" for i in range(FIELD_CAP + 1)
         ) + "}\n",
         "params.cs": "using System;\npublic static class M\n{\n    public static int Take(int a, int b, int c, int d, int e, int f) => 0;\n}\n",
+        "literal.cs": "class C {\n    void M() { Console.WriteLine(\"// not a comment\"); }\n}\n",
+        "blockliteral.cs": "class C {\n    string S = @\"/* not a comment */\";\n}\n",
+        "doc.cs": "//! module doc\n/// public doc\nclass C { }\n",
     }
-    expected = {"cap.cs": 1, "comment.cs": 1, "fields.cs": 1, "params.cs": 1}
+    expected = {"cap.cs": 1, "comment.cs": 1, "fields.cs": 1, "params.cs": 1,
+                "literal.cs": 0, "blockliteral.cs": 0, "doc.cs": 0}
     with tempfile.TemporaryDirectory() as directory:
         for name, body in fixtures.items():
             with open(os.path.join(directory, name), "w", encoding="utf-8") as handle:

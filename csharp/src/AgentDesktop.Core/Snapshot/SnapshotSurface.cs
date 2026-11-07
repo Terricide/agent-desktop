@@ -103,7 +103,7 @@ public static class SnapshotSurfaceNames
         return new AdapterError(
             code,
             $"Snapshot surface '{requested.AsString()}' is not available on this platform")
-            .WithDetails(details)
+            .WithDetails(details.ToJsonString())
             .WithSuggestion("Choose one of the supported snapshot surfaces")
             .WithDisposition(DeliverySemantics.NotDelivered());
     }

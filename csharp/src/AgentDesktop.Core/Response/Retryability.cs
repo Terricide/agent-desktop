@@ -1,5 +1,3 @@
-using System.Text.Json.Nodes;
-
 namespace AgentDesktop.Core.Response;
 
 /// <summary>What an error's details stamp says about repeating the same call.</summary>
@@ -12,27 +10,29 @@ public enum Retryability
 
 public static class RetryabilityReader
 {
-    /// <summary>Reads the retryable stamp from a details object; absent means unspecified.</summary>
-    public static Retryability FromDetails(JsonNode details)
+    /// <summary>Reads the retryable stamp from details JSON text; absent means unspecified. The
+    /// stamp is a documented field, so a text scan is enough and the envelope path never parses
+    /// a document.</summary>
+    public static Retryability FromDetails(string details)
     {
-        if (details is not JsonObject obj)
+        var index = details.IndexOf("\"retryable\"", StringComparison.Ordinal);
+        if (index < 0)
         {
             return Retryability.Unspecified;
         }
 
-        if (!obj.TryGetPropertyValue("retryable", out var stamp))
+        var colon = details.IndexOf(':', index + 11);
+        if (colon < 0)
         {
             return Retryability.Unspecified;
         }
 
-        if (stamp is JsonValue value)
+        var rest = details.AsSpan(colon + 1).TrimStart();
+        if (rest.StartsWith("true", StringComparison.Ordinal))
         {
-            if (value.TryGetValue(out bool flag))
-            {
-                return flag ? Retryability.Retryable : Retryability.NonRetryable;
-            }
+            return Retryability.Retryable;
         }
 
-        return Retryability.Unspecified;
+        return rest.StartsWith("false", StringComparison.Ordinal) ? Retryability.NonRetryable : Retryability.Unspecified;
     }
 }

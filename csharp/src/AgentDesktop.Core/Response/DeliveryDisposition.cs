@@ -19,7 +19,8 @@ public enum Retry
 }
 
 /// <summary>The pair the envelope serializes as disposition.</summary>
-public sealed record DeliverySemantics(Delivery Delivery, Retry Retry)
+[AgentDesktop.Core.Response.EnvelopeSerialize]
+public sealed partial record DeliverySemantics(Delivery Delivery, Retry Retry)
 {
     public static DeliverySemantics Unknown() => new(Delivery.Unknown, Retry.Unknown);
 
@@ -40,4 +41,25 @@ public sealed record DeliverySemantics(Delivery Delivery, Retry Retry)
     };
 
     public static DeliverySemantics From(Delivery delivery) => new(delivery, RetryFor(delivery));
+}
+
+public static class DeliveryNames
+{
+    public static string AsString(this Delivery delivery) => delivery switch
+    {
+        Delivery.Unknown => "unknown",
+        Delivery.NotDelivered => "not_delivered",
+        Delivery.DeliveryUncertain => "delivery_uncertain",
+        Delivery.DeliveredUnverified => "delivered_unverified",
+        Delivery.DeliveredVerified => "delivered_verified",
+        _ => "unknown",
+    };
+
+    public static string AsString(this Retry retry) => retry switch
+    {
+        Retry.Unknown => "unknown",
+        Retry.Safe => "safe",
+        Retry.Unsafe => "unsafe",
+        _ => "unknown",
+    };
 }

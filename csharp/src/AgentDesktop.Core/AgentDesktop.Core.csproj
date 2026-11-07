@@ -9,4 +9,12 @@
   <!-- Core defines the adapter contract and every shared type. It references no
       platform project: check-architecture.py fails the build when it does. -->
 
+  <!-- The envelope's JSON writer is generated for each marked type, so the envelope
+      path never asks a runtime type model what a type contains. -->
+
+  <ItemGroup>
+    <ProjectReference Include="../../tools/AgentDesktop.SourceGen/AgentDesktop.SourceGen.csproj"
+        OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

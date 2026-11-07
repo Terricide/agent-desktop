@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace AgentDesktop.Core.Response;
 
@@ -11,7 +11,7 @@ public class AdapterError : Exception
 
     public string? PlatformDetail { get; private set; }
 
-    public System.Text.Json.Nodes.JsonNode? Details { get; private set; }
+    public string? Details { get; private set; }
 
     public DeliverySemantics Disposition { get; private set; }
 
@@ -23,6 +23,9 @@ public class AdapterError : Exception
         Disposition = DeliverySemantics.Unknown();
         Retryability = Retryability.Unspecified;
     }
+
+    /// <summary>Carries a details object, written as JSON text, so the envelope emits it as an object.</summary>
+    public AdapterError WithDetails(JsonObject details) => WithDetails(details.ToJsonString());
 
     public AdapterError WithSuggestion(string suggestion)
     {
@@ -36,7 +39,8 @@ public class AdapterError : Exception
         return this;
     }
 
-    public AdapterError WithDetails(System.Text.Json.Nodes.JsonNode details)
+    /// <summary>Carries the details object as JSON text, and reads its retryable stamp.</summary>
+    public AdapterError WithDetails(string details)
     {
         var stamp = RetryabilityReader.FromDetails(details);
         if (stamp != Retryability.Unspecified)
@@ -46,12 +50,6 @@ public class AdapterError : Exception
 
         Details = details;
         return this;
-    }
-
-    public AdapterError WithDetails(string detailsJson)
-    {
-        var parsed = System.Text.Json.Nodes.JsonNode.Parse(detailsJson);
-        return parsed is not null ? WithDetails(parsed) : this;
     }
 
     public AdapterError WithDisposition(DeliverySemantics disposition)
@@ -77,7 +75,7 @@ public class AdapterError : Exception
 
     /// <summary>The recovery hint the envelope carries. Nothing is offered when retry is not safe.</summary>
     public RecoveryHint? Recovery =>
-        PermitsRetryByDefault ? RecoveryHints.For(Code, Disposition, Details) : null;
+        PermitsRetryByDefault ? RecoveryHint.For(Code, Disposition, Details) : null;
 
     /// <summary>An incomplete read an adapter's own loop retries inside the operation budget.</summary>
     public bool IsTransientIncompleteRead =>
@@ -138,7 +136,5 @@ public class AdapterError : Exception
 
     public static AdapterError IncompleteLiveEvidence() =>
         new AdapterError(ErrorCode.AppUnresponsive, "Live element evidence was incomplete")
-            .WithDetails("""
-                {"kind":"live_element_evidence","complete":false,"retryable":true}
-                """);
+            .WithDetails("{\"kind\":\"live_element_evidence\",\"complete\":false,\"retryable\":true}");
 }
