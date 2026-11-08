@@ -79,6 +79,8 @@ public static class Slots
 
     public const int ElementGetCurrentPattern = 16;
 
+    public const int ElementGetProcessId = 20;
+
     public const int ElementGetControlType = 21;
 
     public const int ElementGetName = 23;

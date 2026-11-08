@@ -4,5 +4,5 @@ namespace AgentDesktop.Core.Input;
 public sealed record KeyCombo
 {
     public string Key { get; init; } = "";
-    public List<string> Modifiers { get; init; } = new();
+    public List<Modifier> Modifiers { get; init; } = new();
 }

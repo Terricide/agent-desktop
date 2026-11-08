@@ -59,6 +59,12 @@ internal sealed class ActionsAdapter : ActionOps
             ActionKind.Select => ActionResult.FromExecution(
                 request.Action,
                 SelectAction.SelectSteps(element, request.Action.Text ?? "", deadline)),
+            ActionKind.TypeText => ActionResult.FromExecution(
+                request.Action,
+                KeyboardLeg.TypeTextSteps(element, request.Action.Text ?? "", policy, deadline)),
+            ActionKind.PressKey => ActionResult.FromExecution(
+                request.Action,
+                KeyboardLeg.PressKeySteps(element, request.Action.Key!, policy, deadline)),
             ActionKind.Scroll => ActionResult.FromExecution(
                 request.Action,
                 ScrollAction.ScrollSteps(

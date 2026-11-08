@@ -61,6 +61,18 @@ internal sealed class Element : IDisposable
     /// <summary>Screen bounds in device pixels from the walk cache. A negative extent reads as zero.</summary>
     internal LocatorField<Rect> BoundingRectangle() => ReadBounds(Slots.ElementGetCachedBoundingRectangle);
 
+    /// <summary>Live owning process id. A provider that reports 0 is read as no answer, not as
+    /// process zero, so a physical input target with no readable owner is refused.</summary>
+    internal int? CurrentProcessId()
+    {
+        if (_pointer == IntPtr.Zero || Calls.CallIntOut(_pointer, Slots.ElementGetProcessId, out var pid) < 0)
+        {
+            return null;
+        }
+
+        return pid == 0 ? null : pid;
+    }
+
     /// <summary>Live screen bounds in device pixels.</summary>
     internal LocatorField<Rect> CurrentBoundingRectangle() => ReadBounds(Slots.ElementGetBoundingRectangle);
 
