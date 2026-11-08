@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>AgentDesktop.Cli</RootNamespace>
+    <AssemblyName>AgentDesktop.Cli</AssemblyName>
+  </PropertyGroup>
+
+  <!-- The binary is one of the two projects allowed to wire a platform adapter. -->
+  <ItemGroup>
+    <ProjectReference Include="../AgentDesktop.Core/AgentDesktop.Core.csproj" />
+    <ProjectReference Include="../AgentDesktop.Windows/AgentDesktop.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

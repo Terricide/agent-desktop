@@ -11,6 +11,8 @@ internal static class NodeBuilder
     internal static AccessibilityNode Build(NodeProperties properties, List<AccessibilityNode> children, uint? childrenCount, bool subtreeTruncated)
     {
         var role = Roles.Resolve(properties);
+        var fullDescription = properties.NonBlankText(PropertyIds.FullDescription);
+        var helpText = properties.NonBlankText(PropertyIds.HelpText);
         return new AccessibilityNode
         {
             Role = role,
@@ -18,6 +20,7 @@ internal static class NodeBuilder
             {
                 Name = properties.NonBlankText(PropertyIds.Name),
                 Value = Value(properties),
+                Description = fullDescription ?? helpText,
                 NativeId = properties.NonBlankText(PropertyIds.AutomationId) is { } automationId
                     ? new ElementIdentifier(IdentifierKind.AutomationId, automationId)
                     : null,
@@ -29,6 +32,12 @@ internal static class NodeBuilder
                 Bounds = properties.Get(PropertyIds.BoundingRectangle).Value is Rect bounds && bounds.IsFiniteBounded()
                     ? bounds
                     : null,
+                Descriptors = new NodeDescriptor
+                {
+                    Subrole = properties.NonBlankText(PropertyIds.AriaRole),
+                    RoleDescription = properties.NonBlankText(PropertyIds.LocalizedControlType),
+                    Placeholder = fullDescription is not null ? helpText : null,
+                },
             },
             ChildrenCount = childrenCount,
             SubtreeTruncated = subtreeTruncated,

@@ -89,12 +89,12 @@ public class SnapshotSliceTests
 
         var response = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
         var json = response.ToJsonString();
+        var persisted = SnapshotIdOf(response);
 
         Assert.Contains("\"ok\":true", json);
         Assert.Contains("\"ref_count\":1", json);
         Assert.Contains("\"complete\":true", json);
-        Assert.Contains("\"ref_id\":\"e1\"", json);
-        var persisted = SnapshotIdOf(response);
+        Assert.Contains("\"ref_id\":\"@" + persisted + ":e1\"", json);
         Assert.True(File.Exists(System.IO.Path.Combine(root.Snapshots, "default", persisted, "refmap.json")));
     }
 
@@ -162,5 +162,42 @@ public class SnapshotSliceTests
         Assert.Contains("\"complete\":false", json);
         Assert.Contains("\"truncated\":true", json);
         Assert.Contains("\"subtree_truncated\":true", json);
+    }
+
+    [Fact]
+    public void NativeAutomationIdSerializesAsTaggedObjectAndDescriptorsGuardCompactCollapse()
+    {
+        var leaf = new AccessibilityNode
+        {
+            Role = "button",
+            Identity = new NodeIdentity
+            {
+                Name = "Send",
+                NativeId = new ElementIdentifier(IdentifierKind.AutomationId, "send-btn"),
+            },
+            Presentation = new NodePresentation
+            {
+                AvailableActions = ["Press"],
+                Bounds = new Rect(0, 0, 10, 10),
+            },
+        };
+        var wrapperWithSubrole = new AccessibilityNode
+        {
+            Role = "group",
+            Presentation = new NodePresentation
+            {
+                Descriptors = new NodeDescriptor { Subrole = "navigation" },
+                States = ["enabled"],
+            },
+            Children = [leaf],
+        };
+        var tree = Node("window", "Notes", [wrapperWithSubrole], []);
+        var (snapshot, _, _) = Slice(tree);
+
+        var options = TreeOptions.Default() with { Compact = true };
+        var json = snapshot.Run("Notes", null, options, 100).ToJsonString();
+
+        Assert.Contains("\"native_id\":{\"kind\":\"automation_id\",\"value\":\"send-btn\"}", json);
+        Assert.Contains("\"subrole\":\"navigation\"", json);
     }
 }

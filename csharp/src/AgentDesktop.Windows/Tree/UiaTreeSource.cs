@@ -33,6 +33,8 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
 
     private static readonly int[] VariantReads =
     {
+        PropertyIds.LocalizedControlType,
+        PropertyIds.HelpText,
         PropertyIds.IsPassword,
         PropertyIds.IsRequiredForForm,
         PropertyIds.IsInvokePatternAvailable,
@@ -58,6 +60,8 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         PropertyIds.WindowIsModal,
         PropertyIds.LegacyState,
         PropertyIds.LegacyDefaultAction,
+        PropertyIds.AriaRole,
+        PropertyIds.FullDescription,
     };
 
     private readonly bool _includeBounds;

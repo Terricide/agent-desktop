@@ -32,40 +32,49 @@ internal sealed class Walk<TNode> where TNode : class, IDisposable
         _observed += 1;
         var properties = _source.Read(node);
         var children = new List<AccessibilityNode>();
-        uint? childrenCount = null;
-        var truncated = logicalDepth + 1 >= _budget.MaxLogicalDepth || rawDepth + 1 >= _budget.MaxRawDepth;
-        if (truncated)
-        {
-            _truncated = true;
-            return NodeBuilder.Build(properties, children, null, true);
-        }
-
+        var webWrapper = _source.IsWebWrapper(properties);
+        var childLogicalDepth = webWrapper ? logicalDepth : logicalDepth + 1;
+        var boundaryCandidate = rawDepth >= _budget.MaxRawDepth || childLogicalDepth > _budget.MaxLogicalDepth;
         var kids = new List<TNode>();
-        if (_source.Children(node, false, kids) < 0)
+        if (_source.Children(node, boundaryCandidate, kids) < 0)
         {
             _truncated = true;
             DisposeAll(kids);
             return NodeBuilder.Build(properties, children, null, true);
         }
 
-        childrenCount = (uint)kids.Count;
+        var truncatedByRawDepth = rawDepth >= _budget.MaxRawDepth && kids.Count > 0;
+        var atBoundary = truncatedByRawDepth || childLogicalDepth > _budget.MaxLogicalDepth;
+        if (atBoundary)
+        {
+            if (truncatedByRawDepth)
+            {
+                _truncated = true;
+            }
+
+            uint? boundaryCount = kids.Count > 0 ? (uint)kids.Count : null;
+            DisposeAll(kids);
+            return NodeBuilder.Build(properties, children, boundaryCount, truncatedByRawDepth);
+        }
+
         var sibling = 0;
+        var cut = false;
         foreach (var kid in kids)
         {
             if (sibling >= _budget.MaxSiblings)
             {
                 _truncated = true;
+                cut = true;
                 DisposeAll(kids[sibling..]);
                 break;
             }
 
-            var kidRawDepth = _source.IsWebWrapper(properties) ? rawDepth : rawDepth + 1;
-            children.Add(Node(kid, logicalDepth + 1, kidRawDepth));
+            children.Add(Node(kid, childLogicalDepth, rawDepth + 1));
             sibling++;
             kid.Dispose();
         }
 
-        return NodeBuilder.Build(properties, children, childrenCount, false);
+        return NodeBuilder.Build(properties, children, null, cut);
     }
 
     private static void DisposeAll(List<TNode> nodes)

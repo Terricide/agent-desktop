@@ -13,7 +13,7 @@ internal sealed class NodeProperties
 
     internal static readonly LocatorField<object> AbsentRead = LocatorField<object>.Absent();
 
-    private static readonly int[] ValueBearing = { PropertyIds.Name, PropertyIds.ValueValue, PropertyIds.LegacyDefaultAction };
+    private static readonly int[] ValueBearing = { PropertyIds.Name, PropertyIds.ValueValue, PropertyIds.LegacyDefaultAction, PropertyIds.HelpText, PropertyIds.FullDescription };
 
     private readonly Dictionary<int, LocatorField<object>> _reads;
 

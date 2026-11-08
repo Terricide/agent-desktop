@@ -7,6 +7,8 @@ public static class PropertyIds
 
     public const int ControlType = 30003;
 
+    public const int LocalizedControlType = 30004;
+
     public const int Name = 30005;
 
     public const int HasKeyboardFocus = 30008;
@@ -18,6 +20,8 @@ public static class PropertyIds
     public const int AutomationId = 30011;
 
     public const int ClassName = 30012;
+
+    public const int HelpText = 30013;
 
     public const int IsPassword = 30019;
 
@@ -70,6 +74,10 @@ public static class PropertyIds
     public const int LegacyState = 30096;
 
     public const int LegacyDefaultAction = 30100;
+
+    public const int AriaRole = 30101;
+
+    public const int FullDescription = 30159;
 
     public const int IsDialog = 30174;
 }

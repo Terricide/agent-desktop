@@ -22,14 +22,14 @@ internal static class ProcessTimes
             return null;
         }
 
-        var reported = Interop.GetProcessTimes(process, out var createLow, out var createHigh, out _, out _);
+        var reported = Interop.GetProcessTimes(process, out var creation, out _, out _, out _);
         Interop.CloseHandle(process);
         if (reported == 0)
         {
             return null;
         }
 
-        var ticks = ((long)createHigh << 32) | createLow;
+        var ticks = ((long)creation.High << 32) | creation.Low;
         if (ticks == 0)
         {
             return null;

@@ -12,6 +12,7 @@ internal static class WindowCensus
 
     internal static List<WindowInfo> Collect(WindowFilter filter)
     {
+        DpiAwareness.EnsurePerMonitorV2();
         var pass = new CensusPass();
         WindowEnum.EnumerateTopLevel(pass.Record);
         var windows = pass.Windows;

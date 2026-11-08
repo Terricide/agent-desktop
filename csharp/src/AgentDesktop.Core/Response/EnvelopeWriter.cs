@@ -70,9 +70,19 @@ public sealed class EnvelopeWriter
         _buffer.Append(value.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
+    /// <summary>Appends a double the way serde_json appends an f64: the shortest form that
+    /// round-trips, with a trailing `.0` when the value is integral, so a bound reads as a
+    /// real number and not an integer.</summary>
     public void Number(double value)
     {
-        _buffer.Append(value.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+        var text = value.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+        if (!text.Contains('.') && !text.Contains('E') && !text.Contains('e'))
+        {
+            _buffer.Append(text).Append(".0");
+            return;
+        }
+
+        _buffer.Append(text);
     }
 
     /// <summary>Appends a document the caller built as JSON text, so a command can carry a

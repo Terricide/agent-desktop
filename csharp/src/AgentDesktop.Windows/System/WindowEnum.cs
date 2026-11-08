@@ -26,7 +26,7 @@ internal static class WindowEnum
 {
     private const int WindowLongExStyle = -20;
     private const uint ExtendedToolWindow = 0x00000080;
-    private const int CloakedAttribute = 13;
+    private const int CloakedAttribute = 14;
 
     /// <summary>The census filter: a window an agent means is visible, has a non-zero rect,
     /// is not cloaked by the shell, and is not a tool window. The census measured 147

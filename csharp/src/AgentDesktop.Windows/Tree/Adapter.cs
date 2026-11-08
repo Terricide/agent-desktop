@@ -25,8 +25,9 @@ public sealed class TreeAdapter : ObservationOps
         using var client = BoundedClient();
         using var source = UiaTreeSource.Create(client, request.Options.IncludeBounds);
         using var element = WindowRoot.Resolve(client, handle, request.Deadline);
+        using var prepared = source.PrepareRoot(element);
         var walk = new Walk<Element>(source, WalkBudget.For(request.Options, request.Deadline));
-        var observed = walk.Run(element);
+        var observed = walk.Run(prepared);
         WindowRoot.VerifyOwner(handle, window);
         return observed;
     }

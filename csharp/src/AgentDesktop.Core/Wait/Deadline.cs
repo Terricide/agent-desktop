@@ -61,6 +61,10 @@ public readonly record struct Deadline(long StartedAt, long ExpiresAt, long Time
 
     public bool IsExpired() => Stopwatch.GetTimestamp() >= ExpiresAt;
 
+    /// <summary>Wall-clock time spent since this budget started, which the batch reports as
+    /// its elapsed time.</summary>
+    public long ElapsedMs() => (Stopwatch.GetTimestamp() - StartedAt) * 1000 / Stopwatch.Frequency;
+
     public long RemainingMs()
     {
         var remaining = (ExpiresAt - Stopwatch.GetTimestamp()) * 1000 / Stopwatch.Frequency;

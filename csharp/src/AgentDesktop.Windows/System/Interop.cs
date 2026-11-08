@@ -13,6 +13,9 @@ internal static class Interop
     /// walk. The delegate is kept alive by the pinned context the walk passes to it.</summary>
     internal delegate bool EnumWindowsProc(IntPtr window, IntPtr context);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern int SetProcessDpiAwarenessContext(IntPtr context);
+
     [DllImport("user32.dll")]
     internal static extern int EnumWindows(EnumWindowsProc callback, IntPtr context);
 
@@ -50,7 +53,7 @@ internal static class Interop
     internal static extern IntPtr OpenProcess(int access, bool inherit, uint processId);
 
     [DllImport("kernel32.dll")]
-    internal static extern int GetProcessTimes(IntPtr process, out uint createLow, out uint createHigh, out uint exitLow, out uint exitHigh);
+    internal static extern int GetProcessTimes(IntPtr process, out FileTime creation, out FileTime exit, out FileTime kernel, out FileTime user);
 
     [DllImport("kernel32.dll")]
     internal static extern int CloseHandle(IntPtr handle);
@@ -63,6 +66,16 @@ internal static class Interop
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     internal static extern int Process32NextW(IntPtr snapshot, ref ProcessEntry entry);
+}
+
+/// <summary>A FILETIME as the platform declares it: two 32-bit halves, 100-nanosecond ticks
+/// since 1601. Passing each half as a separate out parameter hands the callee a 4-byte buffer
+/// for an 8-byte struct, so the halves must travel together.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct FileTime
+{
+    internal uint Low;
+    internal uint High;
 }
 
 /// <summary>A screen rectangle as the platform reports it: two corners, not a size.</summary>
@@ -82,6 +95,9 @@ internal struct ProcessEntry
     internal uint Size;
     internal uint Usage;
     internal uint ProcessId;
+    internal nint DefaultHeapId;
+    internal uint ModuleId;
+    internal uint Threads;
     internal uint ParentProcessId;
     internal int PriorityClass;
     internal uint Flags;
