@@ -50,6 +50,9 @@ public sealed record Action
         _ => HeadedRequirement.FocusedWindow,
     };
 
+    /// <summary>Whether the action mutates an element's text value and stamps the element_value verification scope.</summary>
+    public bool WritesElementValue() => Kind is ActionKind.SetValue or ActionKind.Clear or ActionKind.TypeText;
+
     public string Name() => Kind switch
     {
         ActionKind.Click => "click",

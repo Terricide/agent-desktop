@@ -31,7 +31,7 @@ public sealed class RefActionCommand
 
     private readonly SessionStore _sessions;
 
-    public EnvelopeResponse Run(string command, string qualified, Action action, string? sessionId)
+    public EnvelopeResponse Run(string command, string qualified, Action action, string? sessionId, bool headed = false)
     {
         var deadline = Deadline.Standard();
         var parts = qualified.Split(':');
@@ -61,15 +61,18 @@ public sealed class RefActionCommand
                 $"Ref {qualified} was not unique in the observation it was captured from"));
         }
 
-        var handle = _adapter.ResolveElementStrict(entry, deadline);
-        using var lease = new InteractionLease(deadline, InteractionPolicy.Unspecified);
-        var result = _adapter.ExecuteAction(handle, new ActionRequest(action, false), lease);
+        using var handle = _adapter.ResolveElementStrict(entry, deadline);
+        using var lease = new InteractionLease(deadline, headed ? InteractionPolicy.Physical : InteractionPolicy.Semantic);
+        var result = _adapter.ExecuteAction(handle, new ActionRequest(action, headed), lease);
 
         var data = new JsonObject
         {
             ["action"] = result.Action,
-            ["delivery"] = result.Disposition.Delivery.AsString(),
-            ["retry"] = result.Disposition.Retry.AsString(),
+            ["disposition"] = new JsonObject
+            {
+                ["delivery"] = result.Disposition.Delivery.AsString(),
+                ["retry"] = result.Disposition.Retry.AsString(),
+            },
         };
 
         if (result.Steps.Count > 0)
@@ -77,18 +80,29 @@ public sealed class RefActionCommand
             var steps = new JsonArray();
             foreach (var step in result.Steps)
             {
-                JsonNode member = new JsonObject
+                var member = new JsonObject
                 {
                     ["label"] = step.Label,
                     ["outcome"] = step.Outcome,
                     ["mechanism"] = step.Mechanism,
                 };
-                steps.Add(member);
+                if (step.Verified is { } verified)
+                {
+                    member["verified"] = verified;
+                }
+
+                steps.Add((JsonNode)member);
             }
 
             data["steps"] = steps;
         }
 
+        if (result.Details is not null)
+        {
+            data["details"] = result.Details.DeepClone();
+        }
+
         return Envelope.Ok(command, data);
     }
 }
+

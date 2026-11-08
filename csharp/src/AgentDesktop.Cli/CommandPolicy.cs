@@ -17,6 +17,18 @@ public static class CommandPolicy
                 $"'{command.Name}' needs a snapshot-qualified ref, for example @s1a2b:e1");
         }
 
+        if (command.Name is "set-value" or "select" or "type" && command.Positional.Count < 2)
+        {
+            return AdapterError.InvalidArgs($"'{command.Name}' needs a value after the ref");
+        }
+
+        if (command.Name == "scroll"
+            && command.Value("direction") is { } direction
+            && direction is not ("up" or "down" or "left" or "right"))
+        {
+            return AdapterError.InvalidArgs($"Invalid scroll direction '{direction}'. Use up, down, left, or right");
+        }
+
         if (command.Name == "snapshot" && command.Value("app") is null)
         {
             return AdapterError.InvalidArgs("snapshot needs --app <name>")

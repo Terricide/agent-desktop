@@ -54,6 +54,14 @@ public sealed class Client : IDisposable
         return hr;
     }
 
+    /// <summary>Compares two UI Automation elements by provider identity.</summary>
+    public int CompareElements(IntPtr first, IntPtr second, out bool areSame)
+    {
+        var hr = Calls.CallTwoPointersIntOut(_pointer, Slots.ClientCompareElements, first, second, out var flag);
+        areSame = hr >= 0 && flag != 0;
+        return hr;
+    }
+
     /// <summary>The element for a top-level window handle.</summary>
     public int ElementFromHandle(IntPtr hwnd, out IntPtr element) =>
         Calls.CallOutPointerWithArg(_pointer, Slots.ClientElementFromHandle, hwnd, out element);
@@ -62,6 +70,10 @@ public sealed class Client : IDisposable
     /// a top-level handle read does not.</summary>
     public int ElementFromPoint(int x, int y, out IntPtr element) =>
         Calls.CallPointOut(_pointer, Slots.ClientElementFromPoint, new UiaPoint { x = x, y = y }, out element);
+
+    /// <summary>The element that currently holds keyboard focus.</summary>
+    public int FocusedElement(out IntPtr element) =>
+        Calls.CallOutPointer(_pointer, Slots.ClientGetFocusedElement, out element);
 
     /// <summary>The raw view walker, which visits every element including the ones the
     /// control view hides.</summary>

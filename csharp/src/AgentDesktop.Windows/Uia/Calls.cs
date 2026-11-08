@@ -128,6 +128,15 @@ public static class Calls
         }
     }
 
+    public static int CallWithTwoInts(IntPtr comPointer, int slot, int first, int second)
+    {
+        unsafe
+        {
+            var fn = (delegate* unmanaged<IntPtr, int, int, int>)(Slot(comPointer, slot));
+            return fn(comPointer, first, second);
+        }
+    }
+
     public static int CallWithPointer(IntPtr comPointer, int slot, IntPtr argument)
     {
         unsafe
@@ -135,6 +144,56 @@ public static class Calls
             var fn = (delegate* unmanaged<IntPtr, IntPtr, int>)(Slot(comPointer, slot));
             return fn(comPointer, argument);
         }
+    }
+
+    /// <summary>Allocates a BSTR for the call and frees it before returning.</summary>
+    public static int CallWithBstr(IntPtr comPointer, int slot, string text)
+    {
+        var bstr = Marshal.StringToBSTR(text);
+        try
+        {
+            unsafe
+            {
+                var fn = (delegate* unmanaged<IntPtr, IntPtr, int>)(Slot(comPointer, slot));
+                return fn(comPointer, bstr);
+            }
+        }
+        finally
+        {
+            Marshal.FreeBSTR(bstr);
+        }
+    }
+
+    public static int CallWithDouble(IntPtr comPointer, int slot, double argument)
+    {
+        unsafe
+        {
+            var fn = (delegate* unmanaged<IntPtr, double, int>)(Slot(comPointer, slot));
+            return fn(comPointer, argument);
+        }
+    }
+
+    public static int CallWithTwoDoubles(IntPtr comPointer, int slot, double first, double second)
+    {
+        unsafe
+        {
+            var fn = (delegate* unmanaged<IntPtr, double, double, int>)(Slot(comPointer, slot));
+            return fn(comPointer, first, second);
+        }
+    }
+
+    public static int CallTwoPointersIntOut(IntPtr comPointer, int slot, IntPtr first, IntPtr second, out int result)
+    {
+        var value = 0;
+        int hr;
+        unsafe
+        {
+            var fn = (delegate* unmanaged<IntPtr, IntPtr, IntPtr, int*, int>)(Slot(comPointer, slot));
+            hr = fn(comPointer, first, second, &value);
+        }
+
+        result = value;
+        return hr;
     }
 
     /// <summary>A BSTR getter. A null BSTR is COM's canonical empty string and reads as null;
@@ -166,6 +225,20 @@ public static class Calls
         unsafe
         {
             var fn = (delegate* unmanaged<IntPtr, int*, int>)(Slot(comPointer, slot));
+            hr = fn(comPointer, &value);
+        }
+
+        result = value;
+        return hr;
+    }
+
+    public static int CallDoubleOut(IntPtr comPointer, int slot, out double result)
+    {
+        var value = 0.0;
+        int hr;
+        unsafe
+        {
+            var fn = (delegate* unmanaged<IntPtr, double*, int>)(Slot(comPointer, slot));
             hr = fn(comPointer, &value);
         }
 

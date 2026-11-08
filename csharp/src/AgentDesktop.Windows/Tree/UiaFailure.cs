@@ -14,6 +14,16 @@ internal static class UiaFailure
 {
     internal const int ElementNotAvailable = unchecked((int)0x8004_0201);
 
+    internal const int ElementNotEnabled = unchecked((int)0x8004_0200);
+
+    internal const int NotSupported = unchecked((int)0x8004_0204);
+
+    internal const int InvalidOperation = unchecked((int)0x8013_1509);
+
+    internal const int InvalidArg = unchecked((int)0x8007_0057);
+
+    internal const int NoInterface = unchecked((int)0x8000_4002);
+
     private const uint ComNotInitialized = 0x8004_01F0;
 
     internal static AdapterError Error(int hresult, string context)
@@ -26,6 +36,35 @@ internal static class UiaFailure
             ? error.WithSuggestion("Join the calling thread to the COM multithreaded apartment before observing the desktop")
             : error;
     }
+
+    /// <summary>Classifies a pattern write failure with its delivery disposition, matching
+    /// classify_write in crates/windows/src/actions/mutation.rs.</summary>
+    internal static AdapterError WriteError(int hresult, string action, string mechanism)
+    {
+        var (code, disposition) = ClassifyWrite(hresult);
+        return new AdapterError(code, $"{action} via {mechanism} failed")
+            .WithPlatformDetail(Detail(hresult))
+            .WithDisposition(disposition);
+    }
+
+    /// <summary>Maps a write-path HRESULT to its ErrorCode and DeliverySemantics.</summary>
+    internal static (ErrorCode Code, DeliverySemantics Disposition) ClassifyWrite(int hresult) => unchecked((uint)hresult) switch
+    {
+        0x8004_0201 => (ErrorCode.StaleRef, DeliverySemantics.NotDelivered()),
+        0x8004_0200 => (ErrorCode.ActionFailed, DeliverySemantics.NotDelivered()),
+        0x8004_0204 => (ErrorCode.ActionNotSupported, DeliverySemantics.NotDelivered()),
+        0x8007_0005 => (ErrorCode.PermDenied, DeliverySemantics.NotDelivered()),
+        0x8007_0057 or 0x8000_4003 => (ErrorCode.InvalidArgs, DeliverySemantics.NotDelivered()),
+        0x8013_1505 => (ErrorCode.Timeout, DeliverySemantics.DeliveryUncertain()),
+        0x8013_1509 => (ErrorCode.ActionFailed, DeliverySemantics.NotDelivered()),
+        0x8001_0108 or 0x8001_0105 or 0x8007_06BA or 0x8007_06BE or 0x8000_FFFF =>
+            (ErrorCode.AppUnresponsive, DeliverySemantics.DeliveryUncertain()),
+        _ => (ErrorCode.ActionFailed, DeliverySemantics.DeliveryUncertain()),
+    };
+
+    /// <summary>Whether a pattern probe failure means the element simply does not expose that pattern.</summary>
+    internal static bool IsPatternAbsent(int hresult) =>
+        hresult is NotSupported or InvalidArg or NoInterface;
 
     /// <summary>The HRESULT rendered the way com_hresult_detail renders it. An unlisted code
     /// is a bare hexadecimal value rather than a guess.</summary>
@@ -72,3 +111,4 @@ internal static class UiaFailure
         _ => null,
     };
 }
+

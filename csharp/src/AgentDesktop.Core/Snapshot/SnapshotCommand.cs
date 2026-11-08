@@ -48,9 +48,43 @@ public sealed class SnapshotCommand
         var map = new RefMap(SnapshotId.New());
         var root = Assign(observed.Root, window, map, budget, options);
         var complete = observed.Complete && budget.IsComplete;
+        FinalizeCaptureUniqueness(map, complete);
         _snapshots.Save(map, _sessions.Namespace(sessionId));
 
         return Envelope.Ok("snapshot", Data(apps[0].Name, map, root, window, complete, budget));
+    }
+
+    /// <summary>Records whether each captured ref was uniquely identified over a complete observation.</summary>
+    private static void FinalizeCaptureUniqueness(RefMap map, bool complete)
+    {
+        var entries = map.Entries;
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            string? reason = !complete ? "observation was truncated" : null;
+            if (reason is null)
+            {
+                for (var j = 0; j < entries.Count; j++)
+                {
+                    if (i != j && entry.Identity.MatchesCapture(entries[j].Identity))
+                    {
+                        reason = "multiple elements share captured identity";
+                        break;
+                    }
+                }
+            }
+
+            if (reason is not null)
+            {
+                entries[i] = entry with
+                {
+                    Identity = entry.Identity with { UniquenessReason = reason },
+                    Capabilities = entry.Capabilities with { UniqueAtCapture = false },
+                    Scope = entry.Scope with { CompleteObservation = complete },
+                    UniquenessReason = reason,
+                };
+            }
+        }
     }
 
     private WindowInfo PickWindow(AppInfo app, WindowScope scope, Deadline deadline)

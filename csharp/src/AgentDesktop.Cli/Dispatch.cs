@@ -94,15 +94,17 @@ public static class Dispatch
 
     private static EnvelopeResponse RefAction(ParsedCommand command, PlatformAdapter adapter, SnapshotStore snapshots, SessionStore sessions, string? session)
     {
+        var isScroll = command.Name == "scroll";
         var action = new Action
         {
             Kind = RefActionKinds.For(command.Name),
             Text = command.Positional.Count > 1 ? command.Positional[1] : null,
-            Direction = DirectionFor(command.Value("direction")),
-            Amount = (uint?)command.Integer("amount"),
+            Direction = DirectionFor(command.Value("direction") ?? (isScroll ? "down" : null)),
+            Amount = (uint?)(command.Integer("amount") ?? (isScroll ? 3 : null)),
         };
 
-        return new RefActionCommand(adapter, snapshots, sessions).Run(command.Name, command.Ref!, action, session);
+        return new RefActionCommand(adapter, snapshots, sessions)
+            .Run(command.Name, command.Ref!, action, session, command.IsSet("headed"));
     }
 
     private static Direction? DirectionFor(string? name) => name switch

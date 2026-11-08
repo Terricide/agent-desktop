@@ -1,6 +1,8 @@
+using System.IO;
+using System.Text.Json.Nodes;
 using AgentDesktop.Core.Actions;
-using AgentDesktop.Core.Context;
 using AgentDesktop.Core.Adapter;
+using AgentDesktop.Core.Context;
 using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Refs;
 using AgentDesktop.Core.Response;
@@ -9,7 +11,6 @@ using AgentDesktop.Core.Storage;
 using AgentDesktop.Core.Systems;
 using AgentDesktop.Core.Tree;
 using AgentDesktop.Core.Wait;
-using System.IO;
 using Xunit;
 using Action = AgentDesktop.Core.Actions.Action;
 
@@ -35,6 +36,8 @@ public sealed class FakeAdapter : PlatformAdapter
 
     public ActionRequest? LastRequest { get; private set; }
 
+    public Func<ActionRequest, ActionResult>? OnAction { get; set; }
+
     public List<AppInfo> ListApps(Deadline deadline) => new() { App };
 
     public List<WindowInfo> ListWindows(WindowFilter filter, Deadline deadline) => new() { Window };
@@ -44,6 +47,13 @@ public sealed class FakeAdapter : PlatformAdapter
 
     public NativeHandle ResolveElementStrict(RefEntry entry, Deadline deadline)
     {
+        if (!entry.Capabilities.UniqueAtCapture || !entry.Identity.IsCaptureUnique)
+        {
+            var reason = entry.Identity.UniquenessReason ?? entry.UniquenessReason ?? "ref was not unique at capture";
+            throw new AdapterError(ErrorCode.AmbiguousTarget, $"Ref cannot be resolved strictly: {reason}")
+                .WithDisposition(DeliverySemantics.NotDelivered());
+        }
+
         ResolveCalls++;
         return NativeHandle.New(entry.Identity.Role);
     }
@@ -51,13 +61,15 @@ public sealed class FakeAdapter : PlatformAdapter
     public ActionResult ExecuteAction(NativeHandle handle, ActionRequest request, InteractionLease lease)
     {
         LastRequest = request;
-        return ActionResult.DeliveredUnverified(request.Action.Name());
+        return OnAction is not null
+            ? OnAction(request)
+            : ActionResult.DeliveredUnverified(request.Action.Name());
     }
 }
 
 public class SnapshotSliceTests
 {
-    private static (SnapshotCommand, RefActionCommand, StateRoot) Slice(AccessibilityNode tree)
+    private static (SnapshotCommand, RefActionCommand, StateRoot, FakeAdapter) Slice(AccessibilityNode tree)
     {
         var app = new AppInfo { Name = "Notes", Pid = ProcessId.From(42) };
         var window = new WindowInfo { Id = "w1", Title = "Notes", App = "Notes", Pid = app.Pid };
@@ -65,11 +77,11 @@ public class SnapshotSliceTests
         var root = new StateRoot(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ad-slice-" + Guid.NewGuid().ToString("N")));
         var sessions = new SessionStore(root);
         var snapshots = new SnapshotStore(root);
-        return (new SnapshotCommand(adapter, snapshots, sessions), new RefActionCommand(adapter, snapshots, sessions), root);
+        return (new SnapshotCommand(adapter, snapshots, sessions), new RefActionCommand(adapter, snapshots, sessions), root, adapter);
     }
 
     private static string SnapshotIdOf(EnvelopeResponse response) =>
-        System.Text.Json.Nodes.JsonNode.Parse(response.ToJsonString())!["data"]!["snapshot_id"]!.GetValue<string>();
+        JsonNode.Parse(response.ToJsonString())!["data"]!["snapshot_id"]!.GetValue<string>();
 
     private static AccessibilityNode Node(string role, string name, List<AccessibilityNode> children, List<string> actions) =>
         new()
@@ -85,7 +97,7 @@ public class SnapshotSliceTests
     {
         var leaf = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
         var tree = Node("group", "Notes", new List<AccessibilityNode> { leaf }, []);
-        var (snapshot, _, root) = Slice(tree);
+        var (snapshot, _, root, _) = Slice(tree);
 
         var response = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
         var json = response.ToJsonString();
@@ -103,7 +115,7 @@ public class SnapshotSliceTests
     {
         var leaf = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
         var tree = Node("group", "Notes", new List<AccessibilityNode> { leaf }, []);
-        var (snapshot, action, _) = Slice(tree);
+        var (snapshot, action, _, _) = Slice(tree);
 
         var captured = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
         var snapshotId = SnapshotIdOf(captured);
@@ -113,8 +125,54 @@ public class SnapshotSliceTests
 
         Assert.Contains("\"ok\":true", json);
         Assert.Contains("\"action\":\"click\"", json);
-        Assert.Contains("\"delivery\":\"delivered_unverified\"", json);
-        Assert.Contains("\"retry\":\"unsafe\"", json);
+        Assert.Contains("\"disposition\":{\"delivery\":\"delivered_unverified\",\"retry\":\"unsafe\"}", json);
+    }
+
+    [Fact]
+    public void ValueWriteActionSerializesVerifiedStepsAndElementValueCommitDetails()
+    {
+        var leaf = Node("textfield", "Query", new List<AccessibilityNode>(), ["SetValue"]);
+        var tree = Node("group", "Notes", new List<AccessibilityNode> { leaf }, []);
+        var (snapshot, action, _, adapter) = Slice(tree);
+        adapter.OnAction = request => ActionResult.FromExecution(
+            request.Action,
+            new List<ActionStep> { new("ValuePattern.SetValue", "succeeded", "semantic_api", true) });
+
+        var captured = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
+        var snapshotId = SnapshotIdOf(captured);
+
+        var response = action.Run(
+            "set-value",
+            "@" + snapshotId + ":e1",
+            new Action { Kind = ActionKind.SetValue, Text = "hello" },
+            null,
+            headed: true);
+        var json = response.ToJsonString();
+
+        Assert.True(adapter.LastRequest?.Headed);
+        Assert.Contains("\"delivery\":\"delivered_verified\"", json);
+        Assert.Contains("\"verified\":true", json);
+        Assert.Contains("\"verification_scope\":\"element_value\"", json);
+        Assert.Contains("\"application_commit\":\"not_verified\"", json);
+    }
+
+    [Fact]
+    public void DuplicateCapturedIdentitiesMarkBothRefsNonUniqueAndFailStrictResolution()
+    {
+        var first = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
+        var second = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
+        var tree = Node("group", "Notes", new List<AccessibilityNode> { first, second }, []);
+        var (snapshot, action, _, _) = Slice(tree);
+
+        var captured = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
+        var snapshotId = SnapshotIdOf(captured);
+
+        var response = action.Run("click", "@" + snapshotId + ":e1", new Action { Kind = ActionKind.Click }, null);
+        var json = response.ToJsonString();
+
+        Assert.Contains("\"ok\":false", json);
+        Assert.Contains("\"code\":\"AMBIGUOUS_TARGET\"", json);
+        Assert.Contains("was not unique in the observation it was captured from", json);
     }
 
     [Fact]
@@ -122,9 +180,8 @@ public class SnapshotSliceTests
     {
         var leaf = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
         var tree = Node("group", "Notes", new List<AccessibilityNode> { leaf }, []);
-        var (snapshot, action, _) = Slice(tree);
+        var (snapshot, action, _, _) = Slice(tree);
         var captured = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
-        var snapshotId = SnapshotIdOf(captured);
 
         var response = action.Run("click", "e1", new Action { Kind = ActionKind.Click }, null);
         var json = response.ToJsonString();
@@ -138,7 +195,7 @@ public class SnapshotSliceTests
     {
         var leaf = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
         var tree = Node("group", "Notes", new List<AccessibilityNode> { leaf }, []);
-        var (snapshot, action, _) = Slice(tree);
+        var (snapshot, action, _, _) = Slice(tree);
         var captured = snapshot.Run("Notes", "session-a", TreeOptions.Default(), 100);
         var snapshotId = SnapshotIdOf(captured);
 
@@ -154,14 +211,19 @@ public class SnapshotSliceTests
         var first = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
         var second = Node("button", "Stop", new List<AccessibilityNode>(), ["Press"]);
         var tree = Node("group", "Notes", new List<AccessibilityNode> { first, second }, []);
-        var (snapshot, _, _) = Slice(tree);
+        var (snapshot, action, _, _) = Slice(tree);
 
-        var json = snapshot.Run("Notes", null, TreeOptions.Default(), 1).ToJsonString();
+        var captured = snapshot.Run("Notes", null, TreeOptions.Default(), 1);
+        var json = captured.ToJsonString();
+        var snapshotId = SnapshotIdOf(captured);
 
         Assert.Contains("\"ok\":true", json);
         Assert.Contains("\"complete\":false", json);
         Assert.Contains("\"truncated\":true", json);
         Assert.Contains("\"subtree_truncated\":true", json);
+
+        var resolved = action.Run("click", "@" + snapshotId + ":e1", new Action { Kind = ActionKind.Click }, null);
+        Assert.Contains("\"code\":\"AMBIGUOUS_TARGET\"", resolved.ToJsonString());
     }
 
     [Fact]
@@ -192,7 +254,7 @@ public class SnapshotSliceTests
             Children = [leaf],
         };
         var tree = Node("window", "Notes", [wrapperWithSubrole], []);
-        var (snapshot, _, _) = Slice(tree);
+        var (snapshot, _, _, _) = Slice(tree);
 
         var options = TreeOptions.Default() with { Compact = true };
         var json = snapshot.Run("Notes", null, options, 100).ToJsonString();
@@ -201,3 +263,5 @@ public class SnapshotSliceTests
         Assert.Contains("\"subrole\":\"navigation\"", json);
     }
 }
+
+

@@ -37,6 +37,11 @@ internal sealed class NodeProperties
 
     internal bool Secure { get; }
 
+    /// <summary>Reads IsPassword live from the element and returns true when the element is a
+    /// password field or when IsPassword cannot be read, failing closed.</summary>
+    internal static bool IsLivePassword(Element element) =>
+        WithholdsContent(element.CurrentProperty(PropertyIds.IsPassword));
+
     internal static LocatorField<object> From<T>(LocatorField<T> field) where T : notnull => field.Kind switch
     {
         LocatorFieldKind.Known => LocatorField<object>.Known(field.Value!),

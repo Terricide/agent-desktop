@@ -11,21 +11,31 @@ public static class Slots
 {
     public const int PatternInvoke = 10000;
 
-    public const int PatternToggle = 10015;
+    public const int PatternSelection = 10001;
 
     public const int PatternValue = 10002;
+
+    public const int PatternRangeValue = 10003;
+
+    public const int PatternScroll = 10004;
 
     public const int PatternExpandCollapse = 10005;
 
     public const int PatternSelectionItem = 10010;
 
-    public const int PatternScroll = 10004;
+    public const int PatternToggle = 10015;
 
     public const int PatternScrollItem = 10017;
+
+    public const int PatternLegacyIAccessible = 10018;
+
+    public const int ClientCompareElements = 3;
 
     public const int ClientElementFromHandle = 6;
 
     public const int ClientElementFromPoint = 7;
+
+    public const int ClientGetFocusedElement = 8;
 
     public const int ClientRawViewWalker = 16;
 
@@ -43,6 +53,8 @@ public static class Slots
 
     public const int Client2PutTransactionTimeout = 63;
 
+    public const int WalkerGetParent = 3;
+
     public const int WalkerGetFirstChild = 4;
 
     public const int WalkerGetNextSibling = 6;
@@ -53,11 +65,15 @@ public static class Slots
 
     public const int CacheRequestPutTreeFilter = 9;
 
+    public const int ElementSetFocus = 3;
+
     public const int ElementFindAll = 6;
 
     public const int ElementFindAllBuildCache = 8;
 
     public const int ElementBuildUpdatedCache = 9;
+
+    public const int ElementGetCurrentPropertyValue = 10;
 
     public const int ElementGetCachedPropertyValue = 12;
 
@@ -104,6 +120,54 @@ public static class Slots
     public const int ElementGetCachedBoundingRectangle = 75;
 
     public const int InvokePatternInvoke = 3;
+
+    public const int LegacyIAccessiblePatternDoDefaultAction = 4;
+
+    public const int ValuePatternSetValue = 3;
+
+    public const int ValuePatternGetCurrentValue = 4;
+
+    public const int ValuePatternGetCurrentIsReadOnly = 5;
+
+    public const int RangeValuePatternSetValue = 3;
+
+    public const int RangeValuePatternGetCurrentValue = 4;
+
+    public const int RangeValuePatternGetCurrentIsReadOnly = 5;
+
+    public const int TogglePatternToggle = 3;
+
+    public const int TogglePatternGetCurrentToggleState = 4;
+
+    public const int ExpandCollapsePatternExpand = 3;
+
+    public const int ExpandCollapsePatternCollapse = 4;
+
+    public const int ExpandCollapsePatternGetCurrentExpandCollapseState = 5;
+
+    public const int SelectionItemPatternSelect = 3;
+
+    public const int SelectionItemPatternGetCurrentIsSelected = 6;
+
+    public const int SelectionItemPatternGetCurrentSelectionContainer = 7;
+
+    public const int ScrollPatternScroll = 3;
+
+    public const int ScrollPatternSetScrollPercent = 4;
+
+    public const int ScrollPatternGetCurrentHorizontalScrollPercent = 5;
+
+    public const int ScrollPatternGetCurrentVerticalScrollPercent = 6;
+
+    public const int ScrollPatternGetCurrentHorizontalViewSize = 7;
+
+    public const int ScrollPatternGetCurrentVerticalViewSize = 8;
+
+    public const int ScrollPatternGetCurrentHorizontallyScrollable = 9;
+
+    public const int ScrollPatternGetCurrentVerticallyScrollable = 10;
+
+    public const int ScrollItemPatternScrollIntoView = 3;
 
     public const int ElementArrayLength = 3;
 
