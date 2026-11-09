@@ -1,4 +1,8 @@
 using System.Runtime.InteropServices;
+using System.Text.Json.Nodes;
+using AgentDesktop.Core.Actions;
+using AgentDesktop.Core.Input;
+using AgentDesktop.Core.Response;
 
 namespace AgentDesktop.Windows.Input;
 
@@ -26,6 +30,30 @@ internal static class KeyboardSend
     }
 
     internal static bool KeyIsDown(ushort vk) => KeyStateSink(vk);
+
+    /// <summary>The refusal for a standalone key-down or key-up request.</summary>
+    /// <remarks>
+    /// A held key is state that outlives the request that set it. In stateless mode the
+    /// process that pressed the key is gone before the release is asked for, so the key
+    /// would be left held with nothing left to release it. The refusal is unconditional and
+    /// says what is required; no key event is emitted. The raw-input flag is false and the
+    /// request is marked not delivered. This is the same refusal the Rust adapter makes.
+    /// </remarks>
+    internal static AdapterError KeyStateRefusal(KeyCombo combo, bool down)
+    {
+        return new AdapterError(
+            ErrorCode.ActionNotSupported,
+            "Standalone key-down/key-up is unavailable in stateless mode")
+            .WithDetails(new JsonObject
+            {
+                ["raw_input_emitted"] = false,
+                ["requires_daemon_owned_transaction"] = true,
+            })
+            .WithSuggestion(
+                "Use the atomic 'press' command; spanning key holds require a daemon-owned " +
+                "session that can release keys after disconnect")
+            .Unsent();
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct KeybdInput

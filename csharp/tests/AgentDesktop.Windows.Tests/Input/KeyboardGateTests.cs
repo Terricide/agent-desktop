@@ -13,6 +13,7 @@ namespace AgentDesktop.Windows.Tests.Input;
 /// <summary>Verifies the gates a physical key sequence must pass before it emits anything, and
 /// the release guard that ends a sequence with no key held. The `SendInput` seam is replaced with
 /// a recorder, so no real key event reaches the desktop.</summary>
+[Collection(AgentDesktop.Windows.Tests.KeyboardSendSinkCollection.Name)]
 public sealed class KeyboardGateTests
 {
     [Fact]

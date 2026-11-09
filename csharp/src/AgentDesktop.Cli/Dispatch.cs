@@ -58,7 +58,9 @@ public static class Dispatch
                 "collapse" => RefAction(command, adapter, snapshots, sessions, session),
                 "scroll" => RefAction(command, adapter, snapshots, sessions, session),
                 "scroll-to" => RefAction(command, adapter, snapshots, sessions, session),
-                "press" => Press(command, adapter, snapshots, sessions, session),
+                "press" => KeyCommand(command, ActionKind.PressKey, adapter, snapshots, sessions),
+                "key-down" => KeyCommand(command, ActionKind.KeyDown, adapter, snapshots, sessions),
+                "key-up" => KeyCommand(command, ActionKind.KeyUp, adapter, snapshots, sessions),
                 _ => Envelope.Err(command.Name, AdapterError.NotSupported(command.Name)),
             };
         }
@@ -111,11 +113,19 @@ public static class Dispatch
 
     /// <summary>`press` with no ref targets the frontmost window, so the combo is the first
     /// positional and there is no ref to resolve.</summary>
-    private static EnvelopeResponse Press(ParsedCommand command, PlatformAdapter adapter, SnapshotStore snapshots, SessionStore sessions, string? session)
+    /// <summary>Runs a key command that names no element: `press`, `key-down` or `key-up`.
+    /// All three take one `+`-separated combo and reach the adapter with a null handle, the
+    /// global key target. The adapter decides which of the three it will honour.</summary>
+    private static EnvelopeResponse KeyCommand(
+        ParsedCommand command,
+        ActionKind kind,
+        PlatformAdapter adapter,
+        SnapshotStore snapshots,
+        SessionStore sessions)
     {
         var combo = Combo.Parse(command.Positional[0]);
         return new RefActionCommand(adapter, snapshots, sessions)
-            .RunGlobal(command.Name, new Action { Kind = ActionKind.PressKey, Key = combo }, command.IsSet("headed"));
+            .RunGlobal(command.Name, new Action { Kind = kind, Key = combo }, command.IsSet("headed"));
     }
 
     private static Direction? DirectionFor(string? name) => name switch

@@ -22,10 +22,17 @@ internal sealed class ActionsAdapter : ActionOps
         if (handle.IsNull())
         {
             // A null handle is the global key target: a chord pressed to whatever window is
-            // frontmost, with no element to gate on. Every other action needs an element.
+            // frontmost, with no element to gate on, and the target a standalone key hold
+            // would name. Every other action needs an element.
             if (request.Action.Kind == ActionKind.PressKey)
             {
                 return GlobalPressKey(request.Action, lease);
+            }
+
+            if (request.Action.Kind is ActionKind.KeyDown or ActionKind.KeyUp)
+            {
+                throw KeyboardSend.KeyStateRefusal(
+                    request.Action.Key!, request.Action.Kind == ActionKind.KeyDown);
             }
 
             throw InvalidNativeHandle(true);
