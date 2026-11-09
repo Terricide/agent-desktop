@@ -87,7 +87,7 @@ public class SnapshotSliceTests
         new()
         {
             Role = role,
-            Identity = new NodeIdentity { Name = name },
+            Identity = new NodeIdentity { Name = AgentDesktop.Core.Locator.LocatorField<string>.Known(name) },
             Presentation = new NodePresentation { AvailableActions = actions, Bounds = new Rect(0, 0, 10, 10) },
             Children = children,
         };
@@ -234,7 +234,7 @@ public class SnapshotSliceTests
             Role = "button",
             Identity = new NodeIdentity
             {
-                Name = "Send",
+                Name = AgentDesktop.Core.Locator.LocatorField<string>.Known("Send"),
                 NativeId = new ElementIdentifier(IdentifierKind.AutomationId, "send-btn"),
             },
             Presentation = new NodePresentation

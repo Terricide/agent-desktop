@@ -59,6 +59,16 @@ internal sealed class NodeProperties
 
     internal string? Text(int property) => Get(property).Value as string;
 
+    /// <summary>A property read as a field that can be known, absent, or unread. `Text` returns
+    /// `null` for both an unread property and a property read as empty, so a caller that needs
+    /// to tell them apart reads this instead.</summary>
+    internal LocatorField<string> TextField(int property) => Get(property).Kind switch
+    {
+        LocatorFieldKind.Known => LocatorField<string>.Known(Get(property).Value as string ?? ""),
+        LocatorFieldKind.Absent => LocatorField<string>.Absent(),
+        _ => LocatorField<string>.Unknown(),
+    };
+
     internal string? NonBlankText(int property) =>
         Text(property) is { } text && !string.IsNullOrWhiteSpace(text) ? text : null;
 

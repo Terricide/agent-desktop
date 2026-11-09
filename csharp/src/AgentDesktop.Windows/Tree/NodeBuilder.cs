@@ -1,3 +1,4 @@
+using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Tree;
 using AgentDesktop.Windows.Uia;
 
@@ -22,9 +23,9 @@ internal static class NodeBuilder
             Role = role,
             Identity = new NodeIdentity
             {
-                Name = name.Value,
+                Name = name,
                 Value = Value(properties),
-                Description = description.Value,
+                Description = description,
                 NativeId = properties.NonBlankText(PropertyIds.AutomationId) is { } automationId
                     ? new ElementIdentifier(IdentifierKind.AutomationId, automationId)
                     : null,
@@ -50,7 +51,7 @@ internal static class NodeBuilder
     }
 
     /// <summary>A RichEdit control terminates its value with a carriage return no user typed.</summary>
-    private static string? Value(NodeProperties properties)
+    private static LocatorField<string> Value(NodeProperties properties)
     {
         var value = properties.Text(PropertyIds.ValueValue);
         if (value is not null
@@ -61,6 +62,6 @@ internal static class NodeBuilder
             value = value[..^1];
         }
 
-        return string.IsNullOrEmpty(value) ? null : value;
+        return string.IsNullOrEmpty(value) ? LocatorField<string>.Absent() : LocatorField<string>.Known(value);
     }
 }

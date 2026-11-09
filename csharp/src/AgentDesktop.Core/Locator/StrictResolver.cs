@@ -24,6 +24,15 @@ public static class StrictResolver
             return new ResolutionResult(ResolutionOutcome.RefusedAtCapture, null, 0, target.Identity.UniquenessReason);
         }
 
+        if (target.Identity.StableName.IsUnknown())
+        {
+            return new ResolutionResult(
+                ResolutionOutcome.RefusedAtCapture,
+                null,
+                0,
+                "the capture recorded no name because the adapter could not read it, so there is no proof to re-identify against");
+        }
+
         var matches = observed.Where(e => e.Identity.MatchesCapture(target.Identity)).ToList();
         if (matches.Count == 0)
         {

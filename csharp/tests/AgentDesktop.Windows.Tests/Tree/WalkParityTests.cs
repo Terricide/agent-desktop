@@ -54,6 +54,39 @@ public sealed class WalkParityTests
     private const int ControlTypeWindow = 50032;
     private const int ControlTypePane = 50033;
 
+    [Fact]
+    public void UnreadNameIsRecordedAsUnknownNotAsAbsent()
+    {
+        var node = NodeBuilder.Build(Props(ControlTypeEdit), LabelOutcome.Unlabelled, new List<AccessibilityNode>(), null, false);
+
+        Assert.True(node.Identity.Name.IsUnknown());
+        Assert.Null(node.Identity.Name.Value);
+    }
+
+    /// A name UIA returned as empty means the element has no name, which is a complete answer:
+    /// the slot is absent, not unknown. A ref captured with it can be matched against another
+    /// capture that also found no name.
+    /// A ref captured with an unread name has no proof to re-identify against, so it is refused
+    /// before the application is read, the same disposition as a ref that was not unique at
+    /// capture.
+    [Fact]
+    public void UnreadNameIsRefusedAsCaptureProof()
+    {
+        var candidate = ElementResolve.CandidateIdentity(Props(ControlTypeButton), "w1");
+
+        Assert.True(candidate.StableName.IsUnknown());
+        Assert.False(candidate.MatchesCapture(candidate));
+    }
+
+    [Fact]
+    public void ReadNameIsAcceptedAsCaptureProof()
+    {
+        var candidate = ElementResolve.CandidateIdentity(Props(ControlTypeButton, name: "Save"), "w1");
+
+        Assert.True(candidate.StableName.IsKnown());
+        Assert.True(candidate.MatchesCapture(candidate));
+    }
+
     private static NodeProperties Props(
         int controlType,
         string? name = null,
@@ -95,7 +128,7 @@ public sealed class WalkParityTests
 
         var node = NodeBuilder.Build(props, LabelOutcome.Unlabelled, new List<AccessibilityNode>(), null, false);
 
-        Assert.Equal("Search messages", node.Identity.Description);
+        Assert.Equal("Search messages", node.Identity.Description.Value);
         Assert.Equal("searchbox", node.Presentation.Descriptors.Subrole);
         Assert.Equal("search box", node.Presentation.Descriptors.RoleDescription);
         Assert.Equal("Type to filter", node.Presentation.Descriptors.Placeholder);
@@ -108,7 +141,7 @@ public sealed class WalkParityTests
             isPassword: true);
 
         var passwordNode = NodeBuilder.Build(passwordProps, LabelOutcome.Unlabelled, new List<AccessibilityNode>(), null, false);
-        Assert.Null(passwordNode.Identity.Description);
+        Assert.Null(passwordNode.Identity.Description.Value);
         Assert.Null(passwordNode.Presentation.Descriptors.Placeholder);
     }
 
@@ -130,7 +163,7 @@ public sealed class WalkParityTests
         Assert.Null(wrapperNode.ChildrenCount);
         Assert.Single(wrapperNode.Children);
         var buttonNode = wrapperNode.Children[0];
-        Assert.Equal("Send", buttonNode.Identity.Name);
+        Assert.Equal("Send", buttonNode.Identity.Name.Value);
     }
 
     [Fact]

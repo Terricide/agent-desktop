@@ -189,9 +189,9 @@ public sealed class SnapshotCommand
         && child.Role == "group"
         && child.RefId is null
         && !InteractiveRoles.QualifiesForRef(child.Role, new HashSet<string>(child.Presentation.AvailableActions))
-        && string.IsNullOrWhiteSpace(child.Identity.Name)
-        && string.IsNullOrWhiteSpace(child.Identity.Value)
-        && string.IsNullOrWhiteSpace(child.Identity.Description)
+        && Blank(child.Identity.Name)
+        && Blank(child.Identity.Value)
+        && Blank(child.Identity.Description)
         && child.Identity.NativeId is null
         && string.IsNullOrWhiteSpace(child.Presentation.Hint)
         && child.Presentation.States.Count == 0
@@ -208,6 +208,12 @@ public sealed class SnapshotCommand
         && child.Children.Count == 0
         && child.ChildrenCount is null;
 
+    /// <summary>A field only counts as blank when it was read and came back empty. A field
+    /// the adapter could not read is not blank, so a node whose name is unread is never
+    /// collapsed away.</summary>
+    private static bool Blank(LocatorField<string> field) =>
+        field.IsKnown() && string.IsNullOrWhiteSpace(field.Value);
+
     private static RefEntry Capture(AccessibilityNode node, WindowInfo window, RefMap map) => new()
     {
         Process = new RefProcess
@@ -221,7 +227,7 @@ public sealed class SnapshotCommand
             Role = node.Role,
             NativeId = node.Identity.NativeId?.Value,
             StableName = node.Identity.Name,
-            Description = node.Identity.Description,
+            Description = node.Identity.Description.ToNullableText(),
             WindowKey = window.Id,
         },
         Geometry = new RefGeometry { Bounds = node.Presentation.Bounds },

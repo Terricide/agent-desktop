@@ -148,4 +148,25 @@ public sealed class NameEvidenceFactoryTests
 
         Assert.Equal("Type here", AccName.ResolveName(evidence, status).Value);
     }
+
+    /// A property read is a field, not a bare string: a name UIA never returned is unread, a
+    /// name it returned as empty means the element has no name, and a name it returned is the
+    /// name. `null` cannot carry that distinction.
+    [Fact]
+    public void ANameReadIsAFieldWithCertainty()
+    {
+        Assert.True(Props(nameRead: LocatorField<object>.Unknown()).TextField(PropertyIds.Name).IsUnknown());
+        Assert.True(Props(name: "").TextField(PropertyIds.Name).IsKnown());
+        Assert.Equal("", Props(name: "").TextField(PropertyIds.Name).Value);
+        Assert.True(Props(name: "Save").TextField(PropertyIds.Name).IsKnown());
+        Assert.Equal("Save", Props(name: "Save").TextField(PropertyIds.Name).Value);
+    }
+
+    [Fact]
+    public void AnUnreadNameIsRefusedAsAnEmptyName()
+    {
+        Assert.True(Props(nameRead: LocatorField<object>.Unknown()).TextField(PropertyIds.Name).NonBlankField().IsUnknown());
+        Assert.True(Props(name: "").TextField(PropertyIds.Name).NonBlankField().IsAbsent());
+        Assert.Equal("Save", Props(name: "Save").TextField(PropertyIds.Name).NonBlankField().Value);
+    }
 }

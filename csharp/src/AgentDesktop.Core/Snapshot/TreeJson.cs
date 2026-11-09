@@ -23,10 +23,10 @@ public static class TreeJson
             w.Number((long)node.ChildrenCount.Value);
         }
 
-        Text(w, "description", node.Identity.Description);
+        Text(w, "description", node.Identity.Description.Value);
         StringList(w, "dom_classes", node.Presentation.Descriptors.DomClasses);
         Text(w, "hint", node.Presentation.Hint);
-        Text(w, "name", node.Identity.Name);
+        Text(w, "name", node.Identity.Name.Value);
         NativeId(w, node.Identity.NativeId);
         Text(w, "placeholder", node.Presentation.Descriptors.Placeholder);
         Text(w, "ref_id", node.RefId);
@@ -41,7 +41,7 @@ public static class TreeJson
             w.Bool(true);
         }
 
-        Text(w, "value", node.Identity.Value);
+        Text(w, "value", node.Identity.Value.Value);
         w.ObjectEnd();
     }
 

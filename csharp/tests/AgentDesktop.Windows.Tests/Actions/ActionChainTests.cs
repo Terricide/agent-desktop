@@ -187,7 +187,7 @@ public sealed class ActionChainTests
 
         var candidate = ElementResolve.CandidateIdentity(props, "w1");
         Assert.Equal("button", candidate.Role);
-        Assert.Equal("Save", candidate.StableName);
+        Assert.Equal("Save", candidate.StableName.Value);
         Assert.Equal("save-btn", candidate.NativeId);
         Assert.Equal("Save document", candidate.Description);
         Assert.True(candidate.MatchesCapture(candidate));

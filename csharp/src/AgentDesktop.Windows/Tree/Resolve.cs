@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using AgentDesktop.Core.Adapter;
+using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Refs;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Systems;
@@ -84,11 +85,17 @@ internal static class ElementResolve
         {
             Role = role,
             NativeId = properties.NonBlankText(PropertyIds.AutomationId),
-            StableName = properties.NonBlankText(PropertyIds.Name),
+            StableName = NameField(properties),
             Description = fullDescription ?? helpText,
             WindowKey = windowKey,
         };
     }
+
+    /// <summary>The name as a field with certainty: a name UIA never returned is unread, a name
+    /// it returned as empty means the element has no name, and a name it returned is the name.
+    /// The first is an incomplete proof, so a ref captured with it cannot be re-identified.</summary>
+    private static LocatorField<string> NameField(NodeProperties properties) =>
+        properties.TextField(PropertyIds.Name).NonBlankField();
 
     private static void Collect(
         UiaTreeSource source,
