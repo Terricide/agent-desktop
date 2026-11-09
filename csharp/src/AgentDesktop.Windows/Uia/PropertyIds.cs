@@ -25,6 +25,11 @@ public static class PropertyIds
 
     public const int IsPassword = 30019;
 
+    /// <summary>The label relation. It yields an element, not text, so it is not a
+    /// value-bearing property: there is no content on this element to withhold. The text
+    /// derived from it is guarded on the target side, where the secure gate lives.</summary>
+    public const int LabeledBy = 30018;
+
     public const int IsOffscreen = 30022;
 
     public const int FrameworkId = 30024;

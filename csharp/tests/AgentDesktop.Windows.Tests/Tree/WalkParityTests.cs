@@ -19,6 +19,8 @@ internal sealed class StubNode : IDisposable
 
     internal NodeProperties Properties { get; }
 
+    internal LabelOutcome Label { get; init; } = LabelOutcome.Unlabelled;
+
     internal List<StubNode> Children { get; }
 
     internal bool Disposed { get; private set; }
@@ -30,6 +32,8 @@ internal sealed class StubNode : IDisposable
 internal sealed class StubTreeSource : TreeSource<StubNode>
 {
     public NodeProperties Read(StubNode node) => node.Properties;
+
+    public LabelOutcome ReadLabel(StubNode node) => node.Label;
 
     public int Children(StubNode node, bool countOnly, List<StubNode> into)
     {
@@ -89,7 +93,7 @@ public sealed class WalkParityTests
             ariaRole: "searchbox",
             fullDescription: "Search messages");
 
-        var node = NodeBuilder.Build(props, new List<AccessibilityNode>(), null, false);
+        var node = NodeBuilder.Build(props, LabelOutcome.Unlabelled, new List<AccessibilityNode>(), null, false);
 
         Assert.Equal("Search messages", node.Identity.Description);
         Assert.Equal("searchbox", node.Presentation.Descriptors.Subrole);
@@ -103,7 +107,7 @@ public sealed class WalkParityTests
             fullDescription: "Secret description",
             isPassword: true);
 
-        var passwordNode = NodeBuilder.Build(passwordProps, new List<AccessibilityNode>(), null, false);
+        var passwordNode = NodeBuilder.Build(passwordProps, LabelOutcome.Unlabelled, new List<AccessibilityNode>(), null, false);
         Assert.Null(passwordNode.Identity.Description);
         Assert.Null(passwordNode.Presentation.Descriptors.Placeholder);
     }

@@ -8,9 +8,13 @@ namespace AgentDesktop.Windows.Tree;
 /// empty is omitted, and unknown states or actions are an empty list.</summary>
 internal static class NodeBuilder
 {
-    internal static AccessibilityNode Build(NodeProperties properties, List<AccessibilityNode> children, uint? childrenCount, bool subtreeTruncated)
+    internal static AccessibilityNode Build(NodeProperties properties, LabelOutcome label, List<AccessibilityNode> children, uint? childrenCount, bool subtreeTruncated)
     {
         var role = Roles.Resolve(properties);
+        var evidence = NameEvidenceFactory.EvidenceOf(properties, label);
+        var status = NameEvidenceFactory.StatusOf(properties, label);
+        var name = AccName.ResolveName(evidence, status);
+        var description = AccName.ResolveDescription(evidence, status);
         var fullDescription = properties.NonBlankText(PropertyIds.FullDescription);
         var helpText = properties.NonBlankText(PropertyIds.HelpText);
         return new AccessibilityNode
@@ -18,9 +22,9 @@ internal static class NodeBuilder
             Role = role,
             Identity = new NodeIdentity
             {
-                Name = properties.NonBlankText(PropertyIds.Name),
+                Name = name.Value,
                 Value = Value(properties),
-                Description = fullDescription ?? helpText,
+                Description = description.Value,
                 NativeId = properties.NonBlankText(PropertyIds.AutomationId) is { } automationId
                     ? new ElementIdentifier(IdentifierKind.AutomationId, automationId)
                     : null,

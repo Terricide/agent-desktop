@@ -7,6 +7,12 @@ internal interface TreeSource<TNode> where TNode : class, IDisposable
 {
     NodeProperties Read(TNode node);
 
+    /// <summary>What reading this node's `LabeledBy` relation produced. The relation is read
+    /// from the node's cache; the target's own name and `IsPassword` are read live, because a
+    /// cached element-returning property hands back a target whose cached reads fail for the
+    /// properties the same request asked for (A15-3).</summary>
+    LabelOutcome ReadLabel(TNode node);
+
     /// <summary>Appends the node's children and returns the HRESULT. A failure keeps the
     /// children appended before it. A count-only read is for a boundary node, whose children
     /// are counted and released but never read.</summary>

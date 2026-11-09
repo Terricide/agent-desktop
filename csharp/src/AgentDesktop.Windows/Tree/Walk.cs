@@ -31,6 +31,7 @@ internal sealed class Walk<TNode> where TNode : class, IDisposable
     {
         _observed += 1;
         var properties = _source.Read(node);
+        var label = _source.ReadLabel(node);
         var children = new List<AccessibilityNode>();
         var webWrapper = _source.IsWebWrapper(properties);
         var childLogicalDepth = webWrapper ? logicalDepth : logicalDepth + 1;
@@ -40,7 +41,7 @@ internal sealed class Walk<TNode> where TNode : class, IDisposable
         {
             _truncated = true;
             DisposeAll(kids);
-            return NodeBuilder.Build(properties, children, null, true);
+            return NodeBuilder.Build(properties, label, children, null, true);
         }
 
         var truncatedByRawDepth = rawDepth >= _budget.MaxRawDepth && kids.Count > 0;
@@ -54,7 +55,7 @@ internal sealed class Walk<TNode> where TNode : class, IDisposable
 
             uint? boundaryCount = kids.Count > 0 ? (uint)kids.Count : null;
             DisposeAll(kids);
-            return NodeBuilder.Build(properties, children, boundaryCount, truncatedByRawDepth);
+            return NodeBuilder.Build(properties, label, children, boundaryCount, truncatedByRawDepth);
         }
 
         var sibling = 0;
@@ -74,7 +75,7 @@ internal sealed class Walk<TNode> where TNode : class, IDisposable
             kid.Dispose();
         }
 
-        return NodeBuilder.Build(properties, children, null, cut);
+        return NodeBuilder.Build(properties, label, children, null, cut);
     }
 
     private static void DisposeAll(List<TNode> nodes)

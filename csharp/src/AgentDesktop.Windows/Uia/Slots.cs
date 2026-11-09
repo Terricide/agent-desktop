@@ -115,6 +115,10 @@ public static class Slots
 
     public const int ElementGetCachedClassName = 62;
 
+    public const int ElementGetCurrentLabeledBy = 44;
+
+    public const int ElementGetCachedLabeledBy = 76;
+
     public const int ElementGetCachedIsOffscreen = 70;
 
     public const int ElementGetCachedFrameworkId = 72;

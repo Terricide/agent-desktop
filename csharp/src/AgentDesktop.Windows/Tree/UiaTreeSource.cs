@@ -150,6 +150,30 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         return new NodeProperties(reads);
     }
 
+    public LabelOutcome ReadLabel(Element node) => ReadLabelOf(node);
+
+    /// <summary>Resolves an element's `LabeledBy` target and reads its name. **The relation
+    /// rides the cache; the target's own properties do not.** A15-3 measured that a cached
+    /// element-returning property hands back a target whose cached reads fail for the very
+    /// properties the same request asked for, so the target's name and `IsPassword` are read
+    /// live, for the labelled nodes alone. On the WPF fixture that is two of forty-six. The
+    /// relation costs nothing on an unlabelled node: it is one more slot on an element the walk
+    /// already holds. The COM reads happen here; the policy on what they mean lives in
+    /// `NameEvidenceFactory.LabelFromTarget`, which this function only calls.</summary>
+    private static LabelOutcome ReadLabelOf(Element node)
+    {
+        var target = node.LabeledByTarget(cached: true);
+        if (target == IntPtr.Zero)
+        {
+            return LabelOutcome.Failed;
+        }
+
+        using var element = new Element(target);
+        var secure = NameEvidenceFactory.SecureFromRead(element.CurrentProperty(PropertyIds.IsPassword));
+        var name = element.CurrentName();
+        return NameEvidenceFactory.LabelFromTarget(secure, name.Kind == LocatorFieldKind.Known ? name.Value : null);
+    }
+
     /// <summary>A count-only read uses a plain FindAll, so children that are only counted do
     /// not pay for a read set nobody looks at.</summary>
     public int Children(Element node, bool countOnly, List<Element> into)

@@ -96,6 +96,20 @@ internal sealed class Element : IDisposable
         return Calls.CallOutPointerWithIntArg(_pointer, Slots.ElementGetCurrentPattern, patternId, out pattern);
     }
 
+    /// <summary>Resolves this element's `LabeledBy` relation. The caller must release a non-zero
+    /// target pointer. A relation the provider does not publish returns zero, which is the
+    /// ordinary case on a Win32 fixture, not a failure.</summary>
+    internal IntPtr LabeledByTarget(bool cached)
+    {
+        if (_pointer == IntPtr.Zero)
+        {
+            return IntPtr.Zero;
+        }
+
+        var slot = cached ? Slots.ElementGetCachedLabeledBy : Slots.ElementGetCurrentLabeledBy;
+        return Calls.CallOutPointer(_pointer, slot, out var target) < 0 ? IntPtr.Zero : target;
+    }
+
     /// <summary>Calls IUIAutomationElement::SetFocus on this element.</summary>
     internal int SetFocus() =>
         _pointer == IntPtr.Zero ? UiaTreeSource.InvalidPointer : Calls.CallVoid(_pointer, Slots.ElementSetFocus);
