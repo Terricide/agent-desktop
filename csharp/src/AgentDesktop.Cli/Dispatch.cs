@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using AgentDesktop.Core.Actions;
 using AgentDesktop.Core.Adapter;
+using AgentDesktop.Core.Input;
 using AgentDesktop.Core.Refs;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Snapshot;
@@ -57,6 +58,7 @@ public static class Dispatch
                 "collapse" => RefAction(command, adapter, snapshots, sessions, session),
                 "scroll" => RefAction(command, adapter, snapshots, sessions, session),
                 "scroll-to" => RefAction(command, adapter, snapshots, sessions, session),
+                "press" => Press(command, adapter, snapshots, sessions, session),
                 _ => Envelope.Err(command.Name, AdapterError.NotSupported(command.Name)),
             };
         }
@@ -105,6 +107,15 @@ public static class Dispatch
 
         return new RefActionCommand(adapter, snapshots, sessions)
             .Run(command.Name, command.Ref!, action, session, command.IsSet("headed"));
+    }
+
+    /// <summary>`press` with no ref targets the frontmost window, so the combo is the first
+    /// positional and there is no ref to resolve.</summary>
+    private static EnvelopeResponse Press(ParsedCommand command, PlatformAdapter adapter, SnapshotStore snapshots, SessionStore sessions, string? session)
+    {
+        var combo = Combo.Parse(command.Positional[0]);
+        return new RefActionCommand(adapter, snapshots, sessions)
+            .RunGlobal(command.Name, new Action { Kind = ActionKind.PressKey, Key = combo }, command.IsSet("headed"));
     }
 
     private static Direction? DirectionFor(string? name) => name switch

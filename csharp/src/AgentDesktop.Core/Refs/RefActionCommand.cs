@@ -65,6 +65,24 @@ public sealed class RefActionCommand
         using var lease = new InteractionLease(deadline, headed ? InteractionPolicy.Physical : InteractionPolicy.Semantic);
         var result = _adapter.ExecuteAction(handle, new ActionRequest(action, headed), lease);
 
+        return Envelope.Ok(command, ReportData(result));
+    }
+
+    /// <summary>Runs one action with no element target, so the adapter's null-handle path
+    /// decides what a global target can do. A chord is the only action a global target accepts;
+    /// every element action fails closed on the missing handle.</summary>
+    public EnvelopeResponse RunGlobal(string command, Action action, bool headed = false)
+    {
+        var deadline = Deadline.Standard();
+        using var lease = new InteractionLease(deadline, headed ? InteractionPolicy.Physical : InteractionPolicy.Semantic);
+        using var handle = NativeHandle.Null();
+        return Envelope.Ok(command, ReportData(_adapter.ExecuteAction(handle, new ActionRequest(action, headed), lease)));
+    }
+
+    /// <summary>The adapter's report as data: the action, its delivery disposition, the chain
+    /// steps it ran, and any details the adapter attached.</summary>
+    private static JsonObject ReportData(ActionResult result)
+    {
         var data = new JsonObject
         {
             ["action"] = result.Action,
@@ -102,7 +120,7 @@ public sealed class RefActionCommand
             data["details"] = result.Details.DeepClone();
         }
 
-        return Envelope.Ok(command, data);
+        return data;
     }
 }
 

@@ -5,6 +5,7 @@ using AgentDesktop.Core.Context;
 using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Wait;
+using AgentDesktop.Windows.Input;
 using AgentDesktop.Windows.Tree;
 using Action = AgentDesktop.Core.Actions.Action;
 
@@ -20,6 +21,13 @@ internal sealed class ActionsAdapter : ActionOps
         var deadline = lease.Deadline();
         if (handle.IsNull())
         {
+            // A null handle is the global key target: a chord pressed to whatever window is
+            // frontmost, with no element to gate on. Every other action needs an element.
+            if (request.Action.Kind == ActionKind.PressKey)
+            {
+                return GlobalPressKey(request.Action, lease);
+            }
+
             throw InvalidNativeHandle(true);
         }
 
@@ -76,6 +84,15 @@ internal sealed class ActionsAdapter : ActionOps
                 throw AdapterLevelRejection(request.Action.Name()),
             _ => throw AdapterError.NotSupported(request.Action.Name()),
         };
+    }
+
+    /// <summary>The global chord: no element, so no focus-steal gate and no UIPI target to
+    /// check. The key events go to the frontmost window, and the release guard ends the sequence
+    /// with no key held.</summary>
+    private static ActionResult GlobalPressKey(Action action, InteractionLease lease)
+    {
+        KeyboardEvent.SynthesizeKey(action.Key!, lease.Deadline());
+        return ActionResult.FromExecution(action, [new ActionStep("PressKey", "succeeded", "physical_synthetic")]);
     }
 
     public void ScrollIntoView(NativeHandle handle, InteractionLease lease)

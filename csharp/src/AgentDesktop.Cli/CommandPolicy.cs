@@ -22,6 +22,12 @@ public static class CommandPolicy
             return AdapterError.InvalidArgs($"'{command.Name}' needs a value after the ref");
         }
 
+        if (command.Name == "press" && command.Positional.Count < 1)
+        {
+            return AdapterError.InvalidArgs("'press' needs a key combo, for example ctrl+c")
+                .WithSuggestion("Run 'press <combo>' with a +-separated combo, or press <combo> <ref> to target an element");
+        }
+
         if (command.Name == "scroll"
             && command.Value("direction") is { } direction
             && direction is not ("up" or "down" or "left" or "right"))
@@ -38,8 +44,10 @@ public static class CommandPolicy
         return null;
     }
 
-    /// <summary>Whether the command only reads state and sends nothing to the application.</summary>
-    public static bool IsReadOnly(string name) => !RefCommands.Contains(name);
+    /// <summary>Whether the command only reads state and sends nothing to the application. A
+    /// command that sends input is a write even when it takes no ref, so `press` is a write: its
+    /// key events reach the frontmost window with no element to gate on.</summary>
+    public static bool IsReadOnly(string name) => !WriteCommands.Contains(name);
 
     /// <summary>Settles the delivery of an error that carries none: a read-only command or
     /// invalid-args refusal never sent an action to the application.</summary>
@@ -53,5 +61,12 @@ public static class CommandPolicy
         "click", "double-click", "triple-click", "right-click", "type", "set-value",
         "clear", "focus", "select", "toggle", "check", "uncheck", "expand", "collapse",
         "scroll", "scroll-to",
+    };
+
+    /// <summary>The commands that send something to an application.</summary>
+    private static readonly HashSet<string> WriteCommands = new(RefCommands)
+    {
+        "press", "key-down", "key-up", "hover", "drag", "mouse-move", "mouse-click",
+        "mouse-down", "mouse-up", "mouse-wheel", "clipboard-set", "clipboard-clear",
     };
 }
