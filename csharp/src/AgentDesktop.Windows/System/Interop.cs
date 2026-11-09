@@ -49,8 +49,14 @@ internal static class Interop
     [DllImport("dwmapi.dll")]
     internal static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
 
-    [DllImport("kernel32.dll")]
+    [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern IntPtr OpenProcess(int access, bool inherit, uint processId);
+
+    [DllImport("kernel32.dll")]
+    internal static extern uint GetLastError();
+
+    [DllImport("kernel32.dll")]
+    internal static extern uint WaitForSingleObject(IntPtr handle, uint millis);
 
     [DllImport("kernel32.dll")]
     internal static extern int GetProcessTimes(IntPtr process, out FileTime creation, out FileTime exit, out FileTime kernel, out FileTime user);

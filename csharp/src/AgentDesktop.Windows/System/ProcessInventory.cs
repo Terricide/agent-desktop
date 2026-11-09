@@ -37,6 +37,73 @@ internal static class ProcessTimes
 
         return $"{TokenPrefix}:{ticks / TicksPerSecond}:{ticks % TicksPerSecond}";
     }
+
+    /// <summary>Verifies a stored token against the process's current generation. A recycled pid
+    /// whose process is a different generation fails closed; a pid whose process is gone
+    /// altogether reads no token and also fails. This is the check a recycled window handle on a
+    /// different process generation trips.</summary>
+    internal static bool MatchesInstance(uint pid, string token) =>
+        ParseToken(token) is { } expected && expected == TokenForPid(pid);
+
+    /// <summary>Parses a token back into the generation it names, or nothing for an unrecognised
+    /// shape, which must not match anything.</summary>
+    internal static string? ParseToken(string token)
+    {
+        var parts = token.Split(':');
+        if (parts.Length != 3 || parts[0] != TokenPrefix)
+        {
+            return null;
+        }
+
+        if (!long.TryParse(parts[1], out var seconds) || !long.TryParse(parts[2], out var subtick))
+        {
+            return null;
+        }
+
+        return $"{TokenPrefix}:{seconds}:{subtick}";
+    }
+
+    private const int Synchronize = 0x100000;
+
+    private const uint WaitObjectZero = 0;
+
+    private const uint InvalidParameter = 87;
+
+    /// <summary>Whether the process at `pid` is running. A handle that cannot be opened is not
+    /// evidence the process is gone, so it reports running; only a signaled process object is
+    /// evidence it exited.</summary>
+    internal static bool ProcessIsRunning(uint pid)
+    {
+        var process = Interop.OpenProcess(QueryLimitedInformation | Synchronize, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return true;
+        }
+
+        var wait = Interop.WaitForSingleObject(process, 0);
+        Interop.CloseHandle(process);
+        return wait != WaitObjectZero;
+    }
+
+    /// <summary>Blocks on the process object itself for at most `window` and reports whether the
+    /// process exited inside it. `ProcessIsRunning` is a zero-timeout poll, so a process that is
+    /// tearing down but not yet signaled reads as running. This waits on the handle, an event
+    /// rather than a sleep, so the exit is observed the instant it happens. A pid that no longer
+    /// names a process has exited; any other failure to open the handle cannot confirm an exit and
+    /// reports false without waiting.</summary>
+    internal static bool WaitForExit(uint pid, TimeSpan window)
+    {
+        var process = Interop.OpenProcess(QueryLimitedInformation | Synchronize, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return Interop.GetLastError() == InvalidParameter;
+        }
+
+        var millis = (uint)Math.Min(window.TotalMilliseconds, uint.MaxValue);
+        var wait = Interop.WaitForSingleObject(process, millis);
+        Interop.CloseHandle(process);
+        return wait == WaitObjectZero;
+    }
 }
 
 /// <summary>The process table captured once for a pass: pid to image name, read from one
