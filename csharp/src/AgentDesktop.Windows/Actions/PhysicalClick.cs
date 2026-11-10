@@ -4,6 +4,7 @@ using AgentDesktop.Core.Input;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Tree;
 using AgentDesktop.Core.Wait;
+using AgentDesktop.Windows.Input.Mouse;
 using AgentDesktop.Windows.Tree;
 
 namespace AgentDesktop.Windows.Actions;
@@ -95,33 +96,52 @@ internal static class PhysicalClick
         return new ActionStep(ClickLabel, "succeeded", PhysicalSyntheticMechanism, false);
     }
 
-    /// <summary>SEAM: crates/windows/src/actions/physical_target.rs::ensure_headed_click_policy is not
-    /// ported. Refuses every physical click until it is.</summary>
+    /// <summary>The headed-click policy gate, shared with the keyboard leg.</summary>
     private static void EnsureHeadedClickPolicy(InteractionPolicy policy) =>
-        throw AdapterError.NotSupported("click");
+        PhysicalTarget.EnsureHeadedClickPolicy(policy);
 
-    /// <summary>SEAM: crates/windows/src/actions/physical_target.rs::ensure_click_delivery_ready is not
-    /// ported. Refuses every physical click until it is, so no click is committed on unverified
-    /// foreground state.</summary>
+    /// <summary>The click delivery readiness gate, shared with the keyboard leg.</summary>
     private static bool EnsureClickDeliveryReady(Element element, Deadline deadline) =>
-        throw AdapterError.NotSupported("click");
+        PhysicalTarget.EnsureClickDeliveryReady(element, deadline);
 
-    /// <summary>SEAM: crates/windows/src/actions/physical_target.rs::read_click_bounds is not ported.</summary>
+    /// <summary>The target's live bounds, shared with the keyboard leg.</summary>
     private static Rect ReadClickBounds(Element element) =>
-        throw AdapterError.NotSupported("click");
+        PhysicalTarget.ReadClickBounds(element);
 
-    /// <summary>SEAM: crates/windows/src/actions/physical_target.rs::delivery_point is not ported.</summary>
+    /// <summary>The delivery point, shared with the keyboard leg.</summary>
     private static Point DeliveryPoint(Rect bounds, Point? verifiedPoint) =>
-        throw AdapterError.NotSupported("click");
+        PhysicalTarget.DeliveryPoint(bounds, verifiedPoint);
 
-    /// <summary>SEAM: crates/windows/src/actions/physical_target.rs::focus_lost_before_delivery is not
-    /// ported.</summary>
-    private static AdapterError FocusLostBeforeDelivery() => AdapterError.NotSupported("click");
+    /// <summary>The focus-loss refusal, shared with the keyboard leg.</summary>
+    private static AdapterError FocusLostBeforeDelivery() =>
+        PhysicalTarget.FocusLostBeforeDelivery();
 
-    /// <summary>SEAM: crates/windows/src/input/mouse.rs::synthesize_mouse is not ported. Refuses
-    /// every mouse post, so a click is never reported as dispatched without a real post.</summary>
-    private static void SynthesizeMouse(MouseEvent mouseEvent, Deadline deadline) =>
-        throw AdapterError.NotSupported("mouse click");
+    /// <summary>Posts the click sequence: one move to the normalized point, then the down and up
+    /// edges for each click. The post is best-effort: <c>SendInput</c> acknowledges nothing, so a
+    /// completed dispatch is reported as an unverified delivery, never as a verified one. A budget
+    /// spent between clicks fails before the next edge is posted.</summary>
+    private static void SynthesizeMouse(MouseEvent mouseEvent, Deadline deadline)
+    {
+        deadline.EnsureRemaining();
+        var normalized = MouseCoord.NormalizePoint(mouseEvent.Point);
+        MouseSend.PostMouseInputs([MouseSend.MoveInput(normalized.X, normalized.Y, normalized.VirtualDesktop)]);
+
+        var (downFlag, upFlag) = ButtonFlags(mouseEvent.Button);
+        for (var click = 0; click < mouseEvent.ClickCount; click++)
+        {
+            deadline.EnsureRemaining();
+            MouseSend.PostMouseInputs([MouseSend.ButtonInput(downFlag), MouseSend.ButtonInput(upFlag)]);
+        }
+    }
+
+    /// <summary>The down and up flags for the named button.</summary>
+    private static (uint Down, uint Up) ButtonFlags(string button) => button switch
+    {
+        "left" => (MouseSend.MouseEventfLeftDown, MouseSend.MouseEventfLeftUp),
+        "right" => (MouseSend.MouseEventfRightDown, MouseSend.MouseEventfRightUp),
+        "middle" => (MouseSend.MouseEventfMiddleDown, MouseSend.MouseEventfMiddleUp),
+        _ => throw AdapterError.InvalidArgs($"unknown mouse button {button}"),
+    };
 }
 
 /// <summary>What click to perform, shared by the physical click legs and the click-from-gate step.</summary>
