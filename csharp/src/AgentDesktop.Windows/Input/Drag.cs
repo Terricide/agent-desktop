@@ -164,9 +164,12 @@ internal static class Drag
         }
     }
 
-    private static long? DurationOf(DragParams parameters) => throw AdapterError.NotSupported("drag");
+    /// <summary>The drag duration. The parameter set carries no duration, so the default applies.</summary>
+    private static long? DurationOf(DragParams parameters) => null;
 
-    private static long? DropDelayOf(DragParams parameters) => throw AdapterError.NotSupported("drag");
+    /// <summary>The drop delay, or null for the default when the caller named none.</summary>
+    private static long? DropDelayOf(DragParams parameters) =>
+        parameters.DropDelayMs == 0 ? null : parameters.DropDelayMs;
 
     internal static void ValidatePoint(Point point)
     {

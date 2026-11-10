@@ -19,10 +19,11 @@ internal sealed class MouseClickGuard : IDisposable
 
     internal MouseClickGuard(uint upFlag) => _upFlag = upFlag;
 
-    /// <summary>The one seam that posts a button-up. Production posts nothing: the mouse send
-    /// layer is not ported, so the first post refuses. A test swaps the sink to record the posts.</summary>
+    /// <summary>Posts the corrective button-up through the mouse send layer. The post is best-effort:
+    /// <c>SendInput</c> acknowledges nothing, so the guard's own record of what it posted is the only
+    /// account of the corrective input.</summary>
     internal static Action<uint> ReleasePost { get; set; } =
-        _ => throw AdapterError.NotSupported("mouse click");
+        flag => MouseSend.PostMouseInputs([MouseSend.ButtonInput(flag)]);
 
     internal void Arm() => _state.Arm();
 
