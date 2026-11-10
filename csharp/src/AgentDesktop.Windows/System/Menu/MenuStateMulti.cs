@@ -82,12 +82,9 @@ internal static class MenuStateMulti
         return found;
     }
 
-    /// <summary>
-    /// Seam: the single-pid process-existence check (<c>ensure_process_exists</c>) is not yet ported. Until it is, a call
-    /// reports <c>NOT_SUPPORTED</c>.
-    /// </summary>
-    private static void EnsureProcessExists(ProcessId pid) =>
-        throw AdapterError.NotSupported("ensure_process_exists");
+    /// <summary>The single-pid process-existence check, shared with the single-menu path. A pid that
+    /// opens for query is alive; a rejected parameter means it is not.</summary>
+    private static void EnsureProcessExists(ProcessId pid) => MenuState.EnsureProcessExists(pid);
 
     /// <summary>
     /// Seam: the UI Automation tool-window probe (<c>uia_menu_reachable</c>, source B) is not yet ported. Until it is, a

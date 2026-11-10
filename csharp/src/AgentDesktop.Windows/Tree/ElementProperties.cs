@@ -185,11 +185,10 @@ internal sealed class ElementProperties
             : IdentifierEvidence.Absent();
     }
 
-    /// <summary>
-    /// The descriptor slots are resolved by the descriptor vocabulary from this same read set, which
-    /// has no ported reader, so the projection cannot supply them.
-    /// </summary>
-    private static NodeDescriptor Descriptors() => throw AdapterError.NotSupported("descriptors");
+    /// <summary>The descriptor slots. The descriptor vocabulary that fills them has no ported reader,
+    /// so every slot is absent. The envelope omits absent slots, so a node carries no descriptor fields
+    /// at all rather than fields that claim a value the read set never supplied.</summary>
+    private static NodeDescriptor Descriptors() => new NodeDescriptor();
 
     private static bool? AsBool(PropertyOutcome outcome) =>
         outcome is PropertyOutcome.Known known ? KnownAsBool(known.Value) : null;
