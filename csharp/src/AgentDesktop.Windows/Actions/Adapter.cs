@@ -4,6 +4,7 @@ using AgentDesktop.Core.Adapter;
 using AgentDesktop.Core.Context;
 using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Response;
+using AgentDesktop.Core.Tree;
 using AgentDesktop.Core.Wait;
 using AgentDesktop.Windows.Input;
 using AgentDesktop.Windows.Tree;
@@ -34,6 +35,15 @@ internal sealed class ActionsAdapter : ActionOps
         return request.Action.Kind switch
         {
             ActionKind.Click => ExecuteClick(element, policy, deadline),
+            ActionKind.DoubleClick => ActionResult.FromExecution(
+                request.Action,
+                PhysicalClick.DoubleClickSteps(element, policy, deadline, VerifiedPoint)),
+            ActionKind.TripleClick => ActionResult.FromExecution(
+                request.Action,
+                PhysicalClick.TripleClickSteps(element, policy, deadline, VerifiedPoint)),
+            ActionKind.RightClick => ActionResult.FromExecution(
+                request.Action,
+                PhysicalClick.RightClickSteps(element, policy, deadline, VerifiedPoint)),
             ActionKind.SetFocus => ToggleAndDisclosure.FocusElement(element, request.Headed, deadline),
             ActionKind.ScrollTo => ExecuteScrollTo(element, deadline),
             ActionKind.SetValue => ActionResult.FromExecution(
@@ -153,6 +163,10 @@ internal sealed class ActionsAdapter : ActionOps
             new Action { Kind = ActionKind.ScrollTo },
             new List<ActionStep> { Chain.BuildStep(label, outcome) });
     }
+
+    /// <summary>The actionability-verified point for the target. The capture records no verified
+    /// point for a ref, so the delivery point is the midpoint of the target's live bounds.</summary>
+    private static Point? VerifiedPoint => null;
 
     private static AdapterError InvalidNativeHandle(bool empty) =>
         new AdapterError(ErrorCode.InvalidArgs, "Native handle does not contain a Windows UI Automation element")

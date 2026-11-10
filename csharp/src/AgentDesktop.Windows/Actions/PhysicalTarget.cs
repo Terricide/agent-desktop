@@ -214,9 +214,31 @@ internal static class PhysicalTarget
         }
     }
 
-    /// <summary>SEAM for <c>first_native_hwnd</c>: the climb to the first ancestor reporting a
-    /// non-zero handle. Answers no window, so the foreground check refuses delivery.</summary>
-    private static nint? FirstNativeHwnd(Element element, nint walker, Deadline deadline) => null;
+    /// <summary>The climb to the first ancestor reporting a non-zero window handle. UIA reports
+    /// handle 0 for every element that is not itself a window, which is the normal shape for WPF,
+    /// WinUI, UWP and Chromium content, so the climb walks up until a handle appears. A climb that
+    /// reaches a parent with no new element answers no window, and the foreground check refuses
+    /// delivery.</summary>
+    private static nint? FirstNativeHwnd(Element element, nint walker, Deadline deadline)
+    {
+        var node = element;
+        while (true)
+        {
+            deadline.EnsureRemaining();
+            if (node.CurrentNativeWindowHandle() is int handle && handle != 0)
+            {
+                return handle;
+            }
+
+            var next = Element.ParentFrom(walker, node);
+            if (next is null)
+            {
+                return null;
+            }
+
+            node = next;
+        }
+    }
 
     /// <summary>The refusal <c>AdapterError::policy_denied_for_policy</c> raises: POLICY_DENIED,
     /// the suggestion the policy's flags call for, and a NOT_DELIVERED disposition. The shared

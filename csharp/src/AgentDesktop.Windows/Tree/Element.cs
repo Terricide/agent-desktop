@@ -36,6 +36,30 @@ internal sealed class Element : IDisposable
 
     internal IntPtr Pointer => _pointer;
 
+    /// <summary>The parent of <paramref name="node"/> from a UI Automation tree walker, as an owned
+    /// element, or null when the walker reports no parent. The walker hands out the base element
+    /// interface, so the pointer is queried for the element interface this class reads.</summary>
+    internal static Element? ParentFrom(nint walker, Element node)
+    {
+        if (Calls.CallOutPointerWithArg(walker, Slots.WalkerGetParent, node.Pointer, out var parent) < 0
+            || parent == nint.Zero)
+        {
+            return null;
+        }
+
+        var query = global::System.Runtime.InteropServices.Marshal.QueryInterface(
+            parent, in ElementInterfaceId, out var target);
+        Calls.Release(parent);
+        if (query < 0 || target == nint.Zero)
+        {
+            return null;
+        }
+
+        var result = new Element(target);
+        Calls.Release(target);
+        return result;
+    }
+
     /// <summary>The process this element's identity was verified against at capture, when a ref stamped one.</summary>
     internal ProcessPayload? VerifiedProcess => _verified;
 
