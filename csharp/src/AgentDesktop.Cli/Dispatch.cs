@@ -1,6 +1,8 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using AgentDesktop.Core.Actions;
 using AgentDesktop.Core.Adapter;
+using AgentDesktop.Core.Context;
 using AgentDesktop.Core.Input;
 using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Refs;
@@ -63,6 +65,12 @@ public static class Dispatch
                 "press" => KeyCommand(command, ActionKind.PressKey, adapter, snapshots, sessions),
                 "key-down" => KeyCommand(command, ActionKind.KeyDown, adapter, snapshots, sessions),
                 "key-up" => KeyCommand(command, ActionKind.KeyUp, adapter, snapshots, sessions),
+                "mouse-move" => PointerCommand(command, "move", adapter),
+                "mouse-down" => PointerCommand(command, "down", adapter),
+                "mouse-up" => PointerCommand(command, "up", adapter),
+                "mouse-click" => PointerCommand(command, "click", adapter),
+                "mouse-wheel" => PointerCommand(command, "wheel", adapter),
+                "drag" => DragCommand(command, adapter),
                 _ => Envelope.Err(command.Name, AdapterError.NotSupported(command.Name)),
             };
         }
@@ -167,6 +175,92 @@ public static class Dispatch
 
         return new RefActionCommand(adapter, snapshots, sessions)
             .RunGlobal(command.Name, new Action { Kind = kind, Key = combo }, command.IsSet("headed"));
+    }
+
+    /// <summary>A standalone pointer event names absolute coordinates as `x,y` and a button, and reaches
+    /// the adapter as a `MouseEvent`. The wheel carries its notch count as the vertical delta, so the
+    /// `--amount` the caller states is the delta, not a scroll unit count.</summary>
+    private static EnvelopeResponse PointerCommand(ParsedCommand command, string kind, PlatformAdapter adapter)
+    {
+        Point? point = ParsePoint(command.Value("xy"));
+        if (point is null)
+        {
+            return Envelope.Err(command.Name, AdapterError.InvalidArgs("--xy x,y is required for " + command.Name));
+        }
+
+        var mouseEvent = new MouseEvent
+        {
+            Kind = kind,
+            Point = point,
+            Button = command.Value("button") ?? "left",
+            ClickCount = command.Integer("clicks") ?? 1,
+            DeltaY = kind == "wheel" ? command.Real("amount") ?? 0 : 0,
+            DeltaX = kind == "wheel" ? command.Real("dx") ?? 0 : 0,
+        };
+
+        using var lease = new InteractionLease(Deadline.Standard(), InteractionPolicy.Physical);
+        return Envelope.Ok(command.Name, ReportData(adapter.MouseEvent(mouseEvent, lease)));
+    }
+
+    /// <summary>`drag` names two absolute coordinates as `x,y` and `x,y`.</summary>
+    private static EnvelopeResponse DragCommand(ParsedCommand command, PlatformAdapter adapter)
+    {
+        Point? from = ParsePoint(command.Value("from"));
+        Point? to = ParsePoint(command.Value("to"));
+        if (from is null || to is null)
+        {
+            return Envelope.Err(command.Name, AdapterError.InvalidArgs("--from x,y and --to x,y are required for drag"));
+        }
+
+        var parameters = new DragParams
+        {
+            From = from,
+            To = to,
+            DropDelayMs = command.Integer("drop-delay") ?? 0,
+            Type = command.Value("type") ?? "",
+        };
+
+        using var lease = new InteractionLease(Deadline.Standard(), InteractionPolicy.Physical);
+        return Envelope.Ok(command.Name, ReportData(adapter.Drag(parameters, lease)));
+    }
+
+    /// <summary>The adapter's report as data: the action, its delivery disposition, and the chain steps it
+    /// ran. The same shape the ref action command prints, so a pointer command and a ref action look alike.</summary>
+    private static JsonObject ReportData(OperationReport report)
+    {
+        var data = new JsonObject
+        {
+            ["action"] = report.Result.Action,
+            ["disposition"] = new JsonObject
+            {
+                ["delivery"] = report.Result.Disposition.Delivery.AsString(),
+                ["retry"] = report.Result.Disposition.Retry.AsString(),
+            },
+        };
+        var steps = new JsonArray();
+        foreach (var step in report.Result.Steps)
+        {
+            steps.Add(JsonNode.Parse("{\"label\":" + Escaped(step.Label)
+                + ",\"outcome\":" + Escaped(step.Outcome)
+                + ",\"mechanism\":" + Escaped(step.Mechanism) + "}"));
+        }
+        data["steps"] = steps;
+        return data;
+    }
+
+    /// <summary>A step label is short ASCII, so it goes through the JSON string API and comes back quoted.</summary>
+    private static string Escaped(string value) => JsonValue.Create(value).ToJsonString();
+
+    /// <summary>Parses `x,y` into a point. A single number is rejected: a drag and a pointer event both name
+    /// a position, and half a position is not a position.</summary>
+    private static Point? ParsePoint(string? value)
+    {
+        if (value is null) return null;
+        string[] parts = value.Split(',');
+        if (parts.Length != 2) return null;
+        if (!double.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out double x)) return null;
+        if (!double.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out double y)) return null;
+        return new Point(x, y);
     }
 
     private static Direction? DirectionFor(string? name) => name switch
