@@ -2,6 +2,7 @@ using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Wait;
 using AgentDesktop.Windows.Tree;
 using AgentDesktop.Windows.Tree.Properties;
+using AgentDesktop.Windows.Uia;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 
@@ -68,9 +69,10 @@ internal static class SelectSearch
         Deadline deadline,
         Element? prior)
     {
-        Element prepared = PrepareRoot(root);
+        var source = PrepareRoot(root);
+        Element prepared = source.PrepareRoot(root);
         var stack = new List<(Element Node, byte Depth)>();
-        PushChildren(prepared, 1, deadline, 0, stack);
+        PushChildren(source, prepared, 1, deadline, 0, stack);
         int visited = 0;
         Element? found = prior;
         while (stack.Count > 0)
@@ -96,7 +98,7 @@ internal static class SelectSearch
             }
             if (depth < MaxSelectDepth)
             {
-                PushChildren(candidate, (byte)(depth + 1), deadline, visited, stack);
+                PushChildren(source, candidate, (byte)(depth + 1), deadline, visited, stack);
             }
         }
         return found;
@@ -121,7 +123,7 @@ internal static class SelectSearch
             {
                 deadline.EnsureRemaining();
                 double? before = ReadVerticalScrollPercent(element);
-                if (!TryScrollSmallIncrement(element, out global::System.Exception? failure))
+                if (!TryScrollSmallIncrement(element, out AdapterError? failure))
                 {
                     ClassifyWrite("Scroll", ScrollLabel, failure);
                     return (true, false);
@@ -174,6 +176,7 @@ internal static class SelectSearch
     }
 
     private static void PushChildren(
+        UiaTreeSource source,
         Element parent,
         byte childDepth,
         Deadline deadline,
@@ -181,22 +184,23 @@ internal static class SelectSearch
         List<(Element Node, byte Depth)> stack)
     {
         deadline.EnsureRemaining();
-        Element? child = FirstChild(parent);
-        var siblings = new List<Element>();
-        while (child is not null)
+        var children = new List<Element>();
+        var hr = source.Children(parent, false, children);
+        if (hr < 0)
         {
-            if (!SelectNodeBudgetHasRoom(visited, stack.Count, siblings.Count))
+            throw AutomationClassify.UiaFailureError(AutomationClassify.Failure.Hresult(hr),
+                "enumerate children for select");
+        }
+
+        for (var index = children.Count - 1; index >= 0; index--)
+        {
+            if (!SelectNodeBudgetHasRoom(visited, stack.Count, index))
             {
                 throw NodeBudgetError();
             }
+
             deadline.EnsureRemaining();
-            Element? next = NextSibling(child);
-            siblings.Add(child);
-            child = next;
-        }
-        for (int index = siblings.Count - 1; index >= 0; index--)
-        {
-            stack.Add((siblings[index], childDepth));
+            stack.Add((children[index], childDepth));
         }
     }
 
@@ -227,106 +231,119 @@ internal static class SelectSearch
             .WithDetails(new JsonObject { ["kind"] = "ambiguous_select_value" });
     }
 
-    /// <summary>
-    /// SEAM: crates/windows/src/tree/walk/walker_source.rs (UiaTreeSource::for_root, prepare_root).
-    /// </summary>
-    private static Element PrepareRoot(Element root)
+    /// <summary>The source the walk enumerates through, built from the root, with the root prepared
+    /// for it. A cached source stamps the root's provenance so a web wrapper is recognised; a live
+    /// source returns the root unchanged.</summary>
+    private static UiaTreeSource PrepareRoot(Element root)
     {
-        throw AdapterError.NotSupported("select");
+        var source = UiaTreeSource.ForRoot(root);
+        source.PrepareRoot(root);
+        return source;
     }
 
-    /// <summary>
-    /// SEAM: crates/windows/src/tree/walk/walker_source.rs (first_child). Exhaustion maps to null;
-    /// other failures map through uia_failure_error with "enumerate children for select".
-    /// </summary>
-    private static Element? FirstChild(Element parent)
-    {
-        throw AdapterError.NotSupported("select");
-    }
-
-    /// <summary>
-    /// SEAM: crates/windows/src/tree/walk/walker_source.rs (next_sibling). Exhaustion maps to null;
-    /// other failures map through uia_failure_error with "enumerate siblings for select".
-    /// </summary>
-    private static Element? NextSibling(Element current)
-    {
-        throw AdapterError.NotSupported("select");
-    }
-
-    /// <summary>
-    /// SEAM: crates/windows/src/tree/walk/walker_source.rs and tree/automation.rs (same_element).
-    /// </summary>
+    /// <summary>Whether two refs address the same element, read through the client's own comparison
+    /// rather than by a field that two elements can share. A comparison that failed is not read as
+    /// "same".</summary>
     private static bool SameElement(Element left, Element right)
     {
-        throw AdapterError.NotSupported("select");
+        if (Client.Create(out var client) < 0 || client is null)
+        {
+            return false;
+        }
+
+        using (client)
+        {
+            return client.CompareElements(left.Pointer, right.Pointer, out var same) >= 0 && same;
+        }
     }
 
-    /// <summary>
-    /// SEAM: crates/windows/src/tree/properties (TreeProperty::ScrollAvailable flag read).
-    /// </summary>
-    private static bool ScrollAvailable(Element element)
+    /// <summary>The window's scroll affordance, from the property read that says whether a scroll
+    /// pattern exists at all.</summary>
+    private static bool ScrollAvailable(Element element) =>
+        PropertyReader.ReadOne(element, TreeProperty.ScrollAvailable).Flag() == true;
+
+    /// <summary>The vertical axis of the scroll pattern. A pattern the provider does not publish, or a
+    /// read that failed, answers false, which is the path the Rust unwrap_or(false) takes.</summary>
+    private static bool IsVerticallyScrollable(Element element) =>
+        TryPattern(element)?.IsVerticallyScrollable() == true;
+
+    /// <summary>The scroll pattern, or null when the provider does not publish it.</summary>
+    private static Scroll.IScrollPattern? TryPattern(Element element)
     {
-        throw AdapterError.NotSupported("select");
+        try
+        {
+            return element.GetScrollPattern();
+        }
+        catch (AdapterError)
+        {
+            return null;
+        }
     }
-
-    /// <summary>
-    /// SEAM: UIScrollPattern lookup and is_vertically_scrollable. A missing pattern or a failed
-    /// read returns false, matching the Rust unwrap_or(false) path.
-    /// </summary>
-    private static bool IsVerticallyScrollable(Element element)
-    {
-        throw AdapterError.NotSupported("select");
-    }
-
-    /// <summary>
-    /// SEAM: UIScrollPattern get_vertical_scroll_percent. A failed read returns null.
-    /// </summary>
+    /// <summary>The vertical scroll percent, or null when the pattern is absent or the read failed.</summary>
     private static double? ReadVerticalScrollPercent(Element element)
     {
-        throw AdapterError.NotSupported("select");
+        var pattern = TryPattern(element);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return pattern.VerticalScrollPercent();
+        }
+        catch (AdapterError)
+        {
+            return null;
+        }
     }
 
-    /// <summary>
-    /// SEAM: UIScrollPattern scroll(NoAmount, SmallIncrement). Returns false and exposes the
-    /// platform failure for ClassifyWrite when the scroll fails.
-    /// </summary>
-    private static bool TryScrollSmallIncrement(Element element, out global::System.Exception? failure)
+    /// <summary>One small vertical increment. A pattern the provider does not publish, or a call that
+    /// fails, reports false and hands the structured failure to <see cref="ClassifyWrite"/>.</summary>
+    private static bool TryScrollSmallIncrement(Element element, out AdapterError? failure)
     {
-        throw AdapterError.NotSupported("select");
+        failure = null;
+        var pattern = TryPattern(element);
+        if (pattern is null)
+        {
+            failure = AdapterError.FromCode(ErrorCode.ActionNotSupported,
+                "the element publishes no ScrollPattern");
+            return false;
+        }
+
+        try
+        {
+            pattern.Scroll(Scroll.ScrollAmount.NoAmount, Scroll.ScrollAmount.SmallIncrement);
+            return true;
+        }
+        catch (AdapterError error)
+        {
+            failure = error;
+            return false;
+        }
     }
 
-    /// <summary>
-    /// SEAM: crates/windows/src/actions/mutation (classify_success). Throws when classification fails.
-    /// </summary>
-    private static void ClassifySuccess()
+    /// <summary>A clean write is the delivered mutation outcome.</summary>
+    private static void ClassifySuccess() => Mutation.ClassifySuccess();
+
+    /// <summary>Classifies a failed scroll write. The pattern call already produced the structured
+    /// error for its failure, so the write is not delivered and the error is thrown.</summary>
+    private static void ClassifyWrite(string action, string label, AdapterError? failure)
     {
-        throw AdapterError.NotSupported("select");
+        if (failure is null)
+        {
+            return;
+        }
+
+        throw failure;
     }
 
-    /// <summary>
-    /// SEAM: crates/windows/src/actions/mutation (classify_write). Throws the classified error.
-    /// </summary>
-    private static void ClassifyWrite(string action, string label, global::System.Exception? failure)
-    {
-        throw AdapterError.NotSupported("select");
-    }
+    /// <summary>A property read in its flag view. A read that never happened is null, not false.</summary>
+    private static bool? ReadFlag(Element element, TreeProperty property) =>
+        PropertyReader.ReadOne(element, property).Flag();
 
-    /// <summary>
-    /// SEAM: crates/windows/src/tree/properties (read_one for a TreeProperty, flag view).
-    /// </summary>
-    private static bool? ReadFlag(Element element, TreeProperty property)
-    {
-        throw AdapterError.NotSupported("select");
-    }
-
-    /// <summary>
-    /// SEAM: crates/windows/src/tree/name_evidence.rs and tree/properties/element_properties.rs.
-    /// Returns the known accessible name built from the Name, FullDescription, HelpText and
-    /// IsPassword reads with read_label(element, false) and name_fields, or null when the
-    /// name is not known.
-    /// </summary>
-    private static string? ResolveKnownName(Element element)
-    {
-        throw AdapterError.NotSupported("select");
-    }
+    /// <summary>The known accessible name, built from the Name, FullDescription, HelpText and IsPassword
+    /// reads with the uncached label read, or null when the name is not known.</summary>
+    private static string? ResolveKnownName(Element element) =>
+        UiaTreeSource.ReadLabelLive(element).Text;
 }
