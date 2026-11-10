@@ -189,9 +189,48 @@ internal static class ScrollLadder
     internal static DeliveryOutcome ApplyLadderSeam(AdapterError fallback, Func<DeliveryOutcome?> ladder) =>
         ladder() ?? throw fallback;
 
-    /// <summary>Live ancestor ladder over the UIA raw-view walker. Returns null when no scrollable ancestor exists.</summary>
-    internal static DeliveryOutcome? AncestorLadder(Element element, Deadline deadline) =>
-        throw AdapterError.NotSupported("ancestor_ladder");
+    /// <summary>Live ancestor ladder over the UIA raw-view walker. Returns null when no scrollable
+    /// ancestor exists. The target's own process generation is corroborated before any write, so a
+    /// recycled pid never scrolls a window it no longer owns.</summary>
+    internal static DeliveryOutcome? AncestorLadder(Element element, Deadline deadline)
+    {
+        LiveRead.CorroborateVerifiedProcess(element);
+        var viewport = Walker.NearestScrollViewport(element, deadline);
+        if (viewport is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var viewportBounds = Walker.ViewportBounds(viewport);
+            return LadderJudgedFor(deadline,
+                () => DirectionWhenNotVisible(element, viewportBounds),
+                direction => Scroll.ScrollSteps(viewport, direction, 1, deadline));
+        }
+        finally
+        {
+            viewport.Dispose();
+        }
+    }
+
+    /// <summary>The direction the target still needs after a scroll, or null once it is in view. The
+    /// re-read is what says the target arrived; the scroll write's own acknowledgement is not evidence.</summary>
+    private static Direction? DirectionWhenNotVisible(Element element, Rect? viewport)
+    {
+        var sample = ObserveVisibilityDuringScroll(element, viewport);
+        return VisibilityVerified(sample) ? null : DirectionAfterVisibilityMiss(sample);
+    }
+
+    private static VisibilitySample ObserveVisibilityDuringScroll(Element element, Rect? viewport)
+    {
+        var boundsField = element.CurrentBoundingRectangle();
+        var offscreenField = element.CurrentIsOffscreen();
+        return new VisibilitySample(
+            boundsField.IsKnown() ? boundsField.Value : null,
+            offscreenField.IsKnown() ? offscreenField.Value : null,
+            viewport);
+    }
 
     private static bool RectHasArea(Rect rect) =>
         double.IsFinite(rect.X) && double.IsFinite(rect.Y) && double.IsFinite(rect.Width)

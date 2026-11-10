@@ -197,6 +197,27 @@ internal static partial class Walker
     /// that as licence to skip the clipping question is skipping it on a guess.</summary>
     internal static Rect? NearestScrollViewportBounds(Element target, Deadline deadline)
     {
+        var viewport = NearestScrollViewport(target, deadline);
+        if (viewport is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return ViewportBounds(viewport);
+        }
+        finally
+        {
+            viewport.Dispose();
+        }
+    }
+
+    /// <summary>The nearest ancestor that advertises a scroll pattern, climbed over the raw-view
+    /// walker. The caller owns the returned element. A climb that reaches no window root, or runs
+    /// out of budget, answers null.</summary>
+    internal static Element? NearestScrollViewport(Element target, Deadline deadline)
+    {
         if (Client.Create(out var client) < 0 || client is null)
         {
             return null;
@@ -219,13 +240,15 @@ internal static partial class Walker
                     if (PropertyUia.ReadOne(current, TreeProperty.ScrollAvailable) is
                         PropertyOutcome.Known { Value: PropertyValue.Flag(true) })
                     {
-                        var bounds = ViewportBounds(current);
                         foreach (var element in owned)
                         {
-                            element.Dispose();
+                            if (element != current)
+                            {
+                                element.Dispose();
+                            }
                         }
 
-                        return bounds;
+                        return current;
                     }
 
                     if (!TryParentStep(walker, current, out var parent) || parent is null)
@@ -262,7 +285,7 @@ internal static partial class Walker
 
     /// <summary>The viewport's own client area in screen coordinates. A viewport with no native
     /// window falls back to its bounding rectangle, and a rectangle with no area answers null.</summary>
-    private static Rect? ViewportBounds(Element viewport)
+    internal static Rect? ViewportBounds(Element viewport)
     {
         if (viewport.CurrentNativeWindowHandle() is int handle && handle != 0)
         {

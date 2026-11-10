@@ -8,6 +8,7 @@ using AgentDesktop.Core.Signal;
 using AgentDesktop.Core.Systems;
 using AgentDesktop.Core.Wait;
 using AgentDesktop.Windows.System.Menu;
+using AgentDesktop.Windows.Tree;
 using AgentDesktop.Windows.System.Window;
 
 namespace AgentDesktop.Windows.System.Signal;
@@ -140,13 +141,11 @@ internal static class SignalSurfaces
         return surfaces;
     }
 
-    /// <summary>
-    /// Seam: the UI Automation root read (<c>root_from_hwnd</c>) and the modal-sheet predicate
-    /// (<c>window_is_modal_sheet</c>) are not yet ported. Until they are, a sheet probe reports not-supported rather than
-    /// guessing at a surface.
-    /// </summary>
+    /// <summary>The modal classification is the surface path's own predicate, read from the window's
+    /// UIA root exactly as <c>snapshot --surface sheet</c> reads it, so this signal and the surface
+    /// listing cannot disagree about what a window is.</summary>
     private static bool IsModalSheet(IntPtr handle, Deadline deadline) =>
-        throw AdapterError.NotSupported("sheet surface signal");
+        SurfaceInventory.IsModalSheet(handle, deadline);
 
     private static bool HasOwner(IntPtr handle) => NativeOwner.GetWindow(handle, NativeOwner.GwOwner) != IntPtr.Zero;
 

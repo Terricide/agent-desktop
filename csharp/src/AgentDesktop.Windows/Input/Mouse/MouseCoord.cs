@@ -19,6 +19,14 @@ internal static class MouseCoord
 
     private const int SmCyScreen = 1;
 
+    private const int SmXVirtualScreen = 76;
+
+    private const int SmYVirtualScreen = 77;
+
+    private const int SmCxVirtualScreen = 78;
+
+    private const int SmCyVirtualScreen = 79;
+
     /// <summary>A point in SendInput normalized space, with the desktop flag the send flags require.</summary>
     internal readonly record struct NormalizedPoint(int X, int Y, bool VirtualDesktop);
 
@@ -43,8 +51,11 @@ internal static class MouseCoord
     internal static (int Width, int Height) PrimaryScreenMetrics() =>
         (GetSystemMetrics(SmCxScreen), GetSystemMetrics(SmCyScreen));
 
+    /// <summary>The full virtual screen: the bounding rect of every monitor, origin included, so a
+    /// point outside the primary rect can be normalized against the space it actually lives in.</summary>
     private static (int Left, int Top, int Width, int Height) VirtualScreenMetrics() =>
-        throw AdapterError.NotSupported("NormalizePoint");
+        (GetSystemMetrics(SmXVirtualScreen), GetSystemMetrics(SmYVirtualScreen),
+         GetSystemMetrics(SmCxVirtualScreen), GetSystemMetrics(SmCyVirtualScreen));
 
     private static int NormalizeAxis(double coordinate, int origin, int extent)
     {
