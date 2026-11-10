@@ -21,7 +21,9 @@ using AgentDesktop.Core.Systems;
 internal static class WindowOpReadback
 {
     /// <summary>
-    /// Returns the read-back that verifies <paramref name="op"/>. Every window operation has one.
+    /// Returns the read-back that verifies <paramref name="op"/>. Every operation the command surface
+    /// defines has one. An operation outside that set has no read-back to name, so it reports as
+    /// unsupported rather than reading a pattern that says nothing about it.
     /// </summary>
     internal static WindowReadback SelectReadback(WindowOp op)
     {
