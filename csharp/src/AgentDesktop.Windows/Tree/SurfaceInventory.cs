@@ -1,7 +1,11 @@
+using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Snapshot;
 using AgentDesktop.Core.Systems;
 using AgentDesktop.Core.Wait;
+using AgentDesktop.Windows.System.Menu;
+using AgentDesktop.Windows.Tree.Properties;
+using AgentDesktop.Windows.Uia;
 
 namespace AgentDesktop.Windows.Tree;
 
@@ -119,7 +123,36 @@ internal static class SurfaceInventory
     /// or does not implement `WindowIsModal`, classifies the window; a read that fails is no answer.</summary>
     internal static bool IsModalSheet(IntPtr handle, Deadline deadline)
     {
-        throw AdapterError.NotSupported("list-surfaces");
+        if (Client.Create(out var client) < 0 || client is null)
+        {
+            throw UiaFailure.Error(0, "create the UI Automation client");
+        }
+
+        using (client)
+        {
+            var root = WindowRoot.Resolve(client, handle, deadline);
+            try
+            {
+                return ModalClassification(PropertyReader.ReadOne(root, TreeProperty.WindowIsModal));
+            }
+            finally
+            {
+                root.Dispose();
+            }
+        }
+    }
+
+    /// <summary>A provider that answered, or that does not implement <c>WindowIsModal</c>, classifies the
+    /// window; a read that failed is no answer, so the window's <c>sheet</c> classification is reported as
+    /// unclassified instead of absent.</summary>
+    internal static bool ModalClassification(PropertyOutcome outcome)
+    {
+        if (outcome.IsUnknown())
+        {
+            throw AdapterError.FromCode(ErrorCode.ActionFailed, "the window's WindowIsModal property could not be read");
+        }
+
+        return outcome.Flag() == true;
     }
 
     private static void EnsureRemaining(Deadline deadline)
@@ -134,7 +167,13 @@ internal static class SurfaceInventory
     /// same fail-closed corroboration every other named-process entry point applies before answering.</summary>
     private static void RequireLiveProcess(ProcessIdentity process)
     {
-        throw AdapterError.NotSupported("list-surfaces");
+        if (ProcessTimes.MatchesInstance(process.Pid.Value, process.Instance))
+        {
+            return;
+        }
+
+        throw AdapterError.FromCode(ErrorCode.AppNotFound,
+            "The named process is not running, or the pid now runs a different generation");
     }
 
     /// <summary>The pid's agent-facing top-level windows, from the one enumeration pass every window
@@ -211,14 +250,75 @@ internal static class SurfaceInventory
     private static bool RefusesTheListing(AdapterError error) =>
         error.Code is ErrorCode.Timeout or ErrorCode.AppNotFound;
 
-    private static object? LocateMenu(ProcessIdentity process, Deadline deadline)
+    private static MenuStateLocate.MenuLocation? LocateMenu(ProcessIdentity process, Deadline deadline) =>
+        MenuStateLocate.LocateMenu(process.Pid, deadline);
+
+    /// <summary>The located menu as a surface. Both decorations are reads on the window the detector
+    /// already located and proved reachable, so a read that races the menu closing omits its field rather
+    /// than failing the listing - <c>SurfaceInfo</c> skips a null field.</summary>
+    private static SurfaceInfo MenuSurface(MenuStateLocate.MenuLocation menu)
     {
-        throw AdapterError.NotSupported("list-surfaces");
+        if (Client.Create(out var client) < 0 || client is null)
+        {
+            throw UiaFailure.Error(0, "create the UI Automation client");
+        }
+
+        using (client)
+        {
+            var root = WindowRoot.Resolve(client, menu.Window, Deadline.Standard());
+            try
+            {
+                var title = root.CurrentName().Value;
+                return new SurfaceInfo
+                {
+                    Id = $"w-{menu.Window}",
+                    Kind = SnapshotSurface.Menu.AsString(),
+                    Title = string.IsNullOrEmpty(title) ? null : title,
+                    ItemCount = DirectChildCount(client, root),
+                };
+            }
+            finally
+            {
+                root.Dispose();
+            }
+        }
     }
 
-    private static SurfaceInfo MenuSurface(object menu)
+    /// <summary>One scoped child read of the already-located element: the detector found this window, and
+    /// counting its direct items is the follow-up that populates the item count where the surface has
+    /// countable children. No second search of the desktop happens - the element is in hand. A read that
+    /// fails leaves the field absent, which is not read as an empty menu.</summary>
+    private static int? DirectChildCount(Client client, Element root)
     {
-        throw AdapterError.NotSupported("list-surfaces");
+        if (client.TrueCondition(out var condition) < 0 || condition == IntPtr.Zero)
+        {
+            Calls.Release(condition);
+            return null;
+        }
+
+        try
+        {
+            var hr = Calls.CallOutPointerWithIntAndPointer(root.Pointer, Slots.ElementFindAll,
+                Slots.TreeScopeChildren, condition, out var found);
+            if (hr < 0 || found == IntPtr.Zero)
+            {
+                Calls.Release(found);
+                return null;
+            }
+
+            try
+            {
+                return Calls.CallIntOut(found, Slots.ElementArrayLength, out var length) >= 0 ? length : null;
+            }
+            finally
+            {
+                Calls.Release(found);
+            }
+        }
+        finally
+        {
+            Calls.Release(condition);
+        }
     }
 
     private static void TraceUnreadableMenu(ProcessId pid, AdapterError error) =>
