@@ -218,6 +218,10 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
 
     public LabelOutcome ReadLabel(Element node) => ReadLabelOf(node, _cached);
 
+    /// <summary>The label relation read live, for a caller that has no batching source. A live
+    /// label target's own reads never ride a cache, which is the A15-3 finding.</summary>
+    internal static LabelOutcome ReadLabelLive(Element node) => ReadLabelOf(node, false);
+
     /// <summary>Resolves an element's `LabeledBy` target and reads its name. **The relation rides the cache of a
     /// batching source; the target's own properties never do.** A15-3 measured that a cached
     /// element-returning property hands back a target whose cached reads fail for the very

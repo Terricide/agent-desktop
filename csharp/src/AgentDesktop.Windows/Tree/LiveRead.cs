@@ -207,16 +207,16 @@ internal sealed record LiveRead
 
     private static (ElementProperties Properties, List<AdapterError> Errors) ReadLiveBounded(
         Element element,
-        Deadline deadline) => throw AdapterError.NotSupported("read_live_bounded");
+        Deadline deadline) => PropertyReader.ReadLiveBounded(element, deadline);
 
     private static ResolvedVocabulary WalkVocabulary(ElementProperties properties, LabelOutcome label) =>
-        throw AdapterError.NotSupported("walk_vocabulary");
+        Walker.WalkVocabulary(properties, label);
 
     private static void StampMinimizedOffscreen(ElementProperties properties) =>
-        throw AdapterError.NotSupported("stamp_minimized_offscreen");
+        Minimized.StampMinimizedOffscreen(properties);
 
     private static LabelOutcome ReadLabel(Element element) =>
-        throw AdapterError.NotSupported("read_label");
+        UiaTreeSource.ReadLabelLive(element);
 
     private static bool IsToggleableRole(string role) => role is "checkbox" or "switch" or "radiobutton";
 
