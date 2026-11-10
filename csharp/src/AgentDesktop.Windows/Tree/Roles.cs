@@ -1,3 +1,4 @@
+using AgentDesktop.Windows.Tree.Properties;
 using AgentDesktop.Windows.Uia;
 
 namespace AgentDesktop.Windows.Tree;
@@ -9,12 +10,12 @@ internal static class Roles
 {
     internal const string Unknown = "unknown";
 
-    internal static string Resolve(NodeProperties properties) =>
-        properties.Number(PropertyIds.ControlType) is { } controlType
+    internal static string Resolve(ElementProperties properties) =>
+        properties.Number(TreeProperty.ControlType) is { } controlType
             ? ForControlType(controlType, properties)
             : Unknown;
 
-    internal static string ForControlType(int controlType, NodeProperties properties) => controlType switch
+    internal static string ForControlType(int controlType, ElementProperties properties) => controlType switch
     {
         ControlTypeIds.Button => ButtonRole(properties),
         ControlTypeIds.Calendar => "group",
@@ -24,7 +25,7 @@ internal static class Roles
         ControlTypeIds.Hyperlink => "link",
         ControlTypeIds.Image => "image",
         ControlTypeIds.ListItem => "option",
-        ControlTypeIds.List => properties.IsTrue(PropertyIds.IsSelectionPatternAvailable) ? "listbox" : "list",
+        ControlTypeIds.List => properties.IsTrue(TreeProperty.SelectionAvailable) ? "listbox" : "list",
         ControlTypeIds.Menu => "menu",
         ControlTypeIds.MenuBar => "menu",
         ControlTypeIds.MenuItem => "menuitem",
@@ -62,26 +63,26 @@ internal static class Roles
 
     /// <summary>Toggle is the stronger claim about a button's nature, so it wins over
     /// ExpandCollapse when a provider advertises both.</summary>
-    private static string ButtonRole(NodeProperties properties)
+    private static string ButtonRole(ElementProperties properties)
     {
-        if (properties.IsTrue(PropertyIds.IsTogglePatternAvailable))
+        if (properties.IsTrue(TreeProperty.ToggleAvailable))
         {
             return "switch";
         }
 
-        return properties.IsTrue(PropertyIds.IsExpandCollapsePatternAvailable) ? "menubutton" : "button";
+        return properties.IsTrue(TreeProperty.ExpandCollapseAvailable) ? "menubutton" : "button";
     }
 
     /// <summary>An item addressable by row and column is a cell. WPF's DataGrid reports its
     /// cells as Custom with these patterns (A16-10).</summary>
-    private static bool IsGridAddressable(NodeProperties properties) =>
-        properties.IsTrue(PropertyIds.IsGridItemPatternAvailable)
-        || properties.IsTrue(PropertyIds.IsTableItemPatternAvailable);
+    private static bool IsGridAddressable(ElementProperties properties) =>
+        properties.IsTrue(TreeProperty.GridItemAvailable)
+        || properties.IsTrue(TreeProperty.TableItemAvailable);
 
-    private static bool IsEditableDocument(NodeProperties properties) =>
-        properties.IsTrue(PropertyIds.IsValuePatternAvailable)
-        && properties.GatedBool(PropertyIds.ValueIsReadOnly) == false;
+    private static bool IsEditableDocument(ElementProperties properties) =>
+        properties.IsTrue(TreeProperty.ValueAvailable)
+        && properties.GatedBool(TreeProperty.ValueIsReadOnly) == false;
 
-    private static bool IsDialogPane(NodeProperties properties) =>
-        properties.IsTrue(PropertyIds.IsWindowPatternAvailable) || properties.IsTrue(PropertyIds.IsDialog);
+    private static bool IsDialogPane(ElementProperties properties) =>
+        properties.IsTrue(TreeProperty.WindowAvailable) || properties.IsTrue(TreeProperty.IsDialog);
 }

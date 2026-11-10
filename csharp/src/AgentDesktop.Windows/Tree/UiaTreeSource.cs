@@ -1,16 +1,18 @@
 using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Response;
+using AgentDesktop.Windows.Tree.Properties;
 using AgentDesktop.Windows.Uia;
+using PropertyIds = AgentDesktop.Windows.Uia.PropertyIds;
 
 namespace AgentDesktop.Windows.Tree;
 
-/// <summary>The live tree source. Each node's children come from one
-/// FindAllBuildCache(TreeScope_Children, TrueCondition) call that returns them with the
-/// whole read set already cached, so a node costs one cross-process call and its property
-/// reads cost none. The true condition matches the raw view, so the walk sees the same
-/// children the raw view walker the Rust adapter uses would. The cache request is built once
-/// per walk: element scope, a true tree filter so raw-view elements are cached too, and
-/// the default full element mode, so a walked element can still be acted on.</summary>
+/// <summary>The live tree source. A source that batches reads each node's children from one
+/// FindAllBuildCache(TreeScope_Children, TrueCondition) call that returns them with the whole read set already
+/// cached, so a node costs one cross-process call and its property reads cost none. A source that does not batch,
+/// because its root's provider is client-side, reads every property live and lists children with plain FindAll.
+/// The true condition matches the raw view, so the walk sees the same children the raw view walker the Rust adapter
+/// uses would. A batching source builds its cache request once: element scope, a true tree filter so raw-view
+/// elements are cached too, and the default full element mode, so a walked element can still be acted on.</summary>
 internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
 {
     private const string ChromiumWindowClass = "Chrome_WidgetWin_1";
@@ -18,13 +20,15 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
     /// <summary>E_POINTER, for a zero element that is refused rather than called through.</summary>
     internal const int InvalidPointer = unchecked((int)0x8000_4003);
 
+    [ThreadStatic]
+    private static Client? _threadClient;
+
     private static readonly int[] TypedReads =
     {
         PropertyIds.Name,
         PropertyIds.AutomationId,
         PropertyIds.ControlType,
         PropertyIds.ClassName,
-        PropertyIds.FrameworkId,
         PropertyIds.IsEnabled,
         PropertyIds.IsOffscreen,
         PropertyIds.HasKeyboardFocus,
@@ -66,33 +70,54 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
 
     private readonly bool _includeBounds;
 
+    private readonly bool _cached;
+
     private IntPtr _condition;
 
     private IntPtr _request;
 
     private bool _chromiumProvenance;
 
-    private UiaTreeSource(IntPtr condition, bool includeBounds)
+    private UiaTreeSource(bool includeBounds, bool cached)
     {
-        _condition = condition;
         _includeBounds = includeBounds;
+        _cached = cached;
     }
 
-    /// <summary>Builds the condition and cache request one walk uses. Bounds join the read
-    /// set only when the caller asked for them.</summary>
-    internal static UiaTreeSource Create(Client client, bool includeBounds)
+    /// <summary>Builds the condition and, when the source batches, the cache request one walk uses. Bounds join
+    /// the read set only when the caller asked for them. The caller keeps ownership of the client.</summary>
+    internal static UiaTreeSource Create(Client client, bool includeBounds, bool cached = true) =>
+        Build(client, includeBounds, cached);
+
+    /// <summary>Builds the source a resolution walks from one root. The cache policy comes from the root's own
+    /// provider and process id, as the Rust for_root decides it. The walk reads through this thread's client, which
+    /// lives as long as the thread, as the Rust automation_client does, so the source never releases it.</summary>
+    internal static UiaTreeSource ForRoot(Element root) =>
+        Build(ThreadClient(), true, Cache.PolicyForRoot(root).Batches());
+
+    private static Client ThreadClient()
     {
-        var hr = client.TrueCondition(out var condition);
-        if (hr < 0 || condition == IntPtr.Zero)
+        if (_threadClient is { } existing)
         {
-            Calls.Release(condition);
-            throw UiaFailure.Error(hr, "create a true condition");
+            return existing;
         }
 
-        var source = new UiaTreeSource(condition, includeBounds);
+        var hr = Client.Create(out var client);
+        if (hr < 0 || client is null)
+        {
+            throw UiaFailure.Error(hr, "create a UI Automation client whose calls are bounded");
+        }
+
+        _threadClient = client;
+        return client;
+    }
+
+    private static UiaTreeSource Build(Client client, bool includeBounds, bool cached)
+    {
+        var source = new UiaTreeSource(includeBounds, cached);
         try
         {
-            source.BuildCacheRequest(client);
+            source.Initialize(client);
             return source;
         }
         catch
@@ -102,11 +127,33 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         }
     }
 
-    /// <summary>Fetches the read set onto the root. An element from ElementFromHandle carries
-    /// no cache, so without this the root alone would read unknown for every property. Also
-    /// decides Chromium provenance from the root's class, which gates the wrapper skip.</summary>
+    private void Initialize(Client client)
+    {
+        var hr = client.TrueCondition(out var condition);
+        if (hr < 0 || condition == IntPtr.Zero)
+        {
+            Calls.Release(condition);
+            throw UiaFailure.Error(hr, "create a true condition");
+        }
+
+        _condition = condition;
+        if (_cached)
+        {
+            BuildCacheRequest(client);
+        }
+    }
+
+    /// <summary>Fetches the read set onto the root when the source batches, so the root reads from its cache like
+    /// every node the walk retrieves. An uncached source returns the root as given and reads it live. Either way the
+    /// root's class decides Chromium provenance, which gates the wrapper skip.</summary>
     internal Element PrepareRoot(Element root)
     {
+        if (!_cached)
+        {
+            _chromiumProvenance = IsChromiumClass(root.CurrentClassName());
+            return root;
+        }
+
         var updated = IntPtr.Zero;
         var hr = root.Pointer == IntPtr.Zero
             ? InvalidPointer
@@ -118,51 +165,69 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         }
 
         var prepared = new Element(updated);
-        var className = prepared.ClassName();
-        _chromiumProvenance = className.Kind == LocatorFieldKind.Known && className.Value!.Trim() == ChromiumWindowClass;
+        _chromiumProvenance = IsChromiumClass(prepared.ClassName());
         return prepared;
     }
 
-    public NodeProperties Read(Element node)
+    public ElementProperties Read(Element node) => ReadWithFailures(node, out _);
+
+    /// <summary>Reads the walk set from the element: its cache when the source batches, the provider otherwise. The
+    /// count is the reads that failed, each of which leaves its slot unknown.</summary>
+    private ElementProperties ReadWithFailures(Element node, out int failures)
     {
-        var reads = new Dictionary<int, LocatorField<object>>(TypedReads.Length + VariantReads.Length + 1)
-        {
-            [PropertyIds.Name] = NodeProperties.From(node.Name()),
-            [PropertyIds.AutomationId] = NodeProperties.From(node.AutomationId()),
-            [PropertyIds.ControlType] = NodeProperties.From(node.ControlType()),
-            [PropertyIds.ClassName] = NodeProperties.From(node.ClassName()),
-            [PropertyIds.FrameworkId] = NodeProperties.From(node.FrameworkId()),
-            [PropertyIds.IsEnabled] = NodeProperties.From(node.IsEnabled()),
-            [PropertyIds.IsOffscreen] = NodeProperties.From(node.IsOffscreen()),
-            [PropertyIds.HasKeyboardFocus] = NodeProperties.From(node.HasKeyboardFocus()),
-            [PropertyIds.IsKeyboardFocusable] = NodeProperties.From(node.IsKeyboardFocusable()),
-        };
+        List<(TreeProperty Property, PropertyOutcome Outcome)> reads = [];
+        Put(reads, PropertyIds.Name, _cached ? node.Name() : node.CurrentName());
+        Put(reads, PropertyIds.AutomationId, _cached ? node.AutomationId() : node.CurrentAutomationId());
+        Put(reads, PropertyIds.ControlType, _cached ? node.ControlType() : node.CurrentControlType());
+        Put(reads, PropertyIds.ClassName, _cached ? node.ClassName() : node.CurrentClassName());
+        Put(reads, PropertyIds.IsEnabled, _cached ? node.IsEnabled() : node.CurrentIsEnabled());
+        Put(reads, PropertyIds.IsOffscreen, _cached ? node.IsOffscreen() : node.CurrentIsOffscreen());
+        Put(reads, PropertyIds.HasKeyboardFocus, _cached ? node.HasKeyboardFocus() : node.CurrentHasKeyboardFocus());
+        Put(reads, PropertyIds.IsKeyboardFocusable, _cached ? node.IsKeyboardFocusable() : node.CurrentIsKeyboardFocusable());
         if (_includeBounds)
         {
-            reads[PropertyIds.BoundingRectangle] = NodeProperties.From(node.BoundingRectangle());
+            Put(reads, PropertyIds.BoundingRectangle, _cached ? node.BoundingRectangle() : node.CurrentBoundingRectangle());
         }
 
         foreach (var property in VariantReads)
         {
-            reads[property] = node.Property(property);
+            Put(reads, property, _cached ? node.Property(property) : node.CurrentProperty(property));
         }
 
-        return new NodeProperties(reads);
+        failures = reads.Count(read => read.Outcome.IsUnknown());
+        return ElementProperties.FromReads(reads);
     }
 
-    public LabelOutcome ReadLabel(Element node) => ReadLabelOf(node);
-
-    /// <summary>Resolves an element's `LabeledBy` target and reads its name. **The relation
-    /// rides the cache; the target's own properties do not.** A15-3 measured that a cached
-    /// element-returning property hands back a target whose cached reads fail for the very
-    /// properties the same request asked for, so the target's name and `IsPassword` are read
-    /// live, for the labelled nodes alone. On the WPF fixture that is two of forty-six. The
-    /// relation costs nothing on an unlabelled node: it is one more slot on an element the walk
-    /// already holds. The COM reads happen here; the policy on what they mean lives in
-    /// `NameEvidenceFactory.LabelFromTarget`, which this function only calls.</summary>
-    private static LabelOutcome ReadLabelOf(Element node)
+    private static void Put<T>(List<(TreeProperty Property, PropertyOutcome Outcome)> reads, int uiaProperty, LocatorField<T> field)
+        where T : notnull
     {
-        var target = node.LabeledByTarget(cached: true);
+        if (PropertyUia.ToTreeProperty(uiaProperty) is { } property)
+        {
+            reads.Add((property, PropertyUia.FromField(field)));
+        }
+    }
+
+    /// <summary>The locator evidence one element yields: the walk's read set, the label relation, and the vocabulary
+    /// the walk resolves from them. The third value counts the reads that failed.</summary>
+    internal (ElementProperties Properties, LocatorEvidence Evidence, int ReadFailures) Evidence(Element node)
+    {
+        var properties = ReadWithFailures(node, out var failures);
+        var vocabulary = Walker.WalkVocabulary(properties, ReadLabel(node));
+        return (properties, properties.ToLocatorEvidence(vocabulary), failures);
+    }
+
+    public LabelOutcome ReadLabel(Element node) => ReadLabelOf(node, _cached);
+
+    /// <summary>Resolves an element's `LabeledBy` target and reads its name. **The relation rides the cache of a
+    /// batching source; the target's own properties never do.** A15-3 measured that a cached
+    /// element-returning property hands back a target whose cached reads fail for the very
+    /// properties the same request asked for, so the target's name and `IsPassword` are read live, for the
+    /// labelled nodes alone. On the WPF fixture that is two of forty-six. The relation costs nothing on an
+    /// unlabelled node: it is one more slot on an element the walk already holds. The COM reads happen here; the
+    /// policy on what they mean lives in `NameEvidenceFactory.LabelFromTarget`, which this function only calls.</summary>
+    private static LabelOutcome ReadLabelOf(Element node, bool cached)
+    {
+        var target = node.LabeledByTarget(cached);
         if (target == IntPtr.Zero)
         {
             return LabelOutcome.Failed;
@@ -174,8 +239,9 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         return NameEvidenceFactory.LabelFromTarget(secure, name.Kind == LocatorFieldKind.Known ? name.Value : null);
     }
 
-    /// <summary>A count-only read uses a plain FindAll, so children that are only counted do
-    /// not pay for a read set nobody looks at.</summary>
+    /// <summary>A count-only read, or any read from a source that does not batch, uses a plain FindAll, so children
+    /// that are only counted do not pay for a read set nobody looks at, and a live source never asks for a cache it
+    /// did not build.</summary>
     public int Children(Element node, bool countOnly, List<Element> into)
     {
         if (node.Pointer == IntPtr.Zero)
@@ -183,7 +249,7 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
             return InvalidPointer;
         }
 
-        var hr = countOnly
+        var hr = countOnly || !_cached
             ? Calls.CallOutPointerWithIntAndPointer(node.Pointer, Slots.ElementFindAll, Slots.TreeScopeChildren, _condition, out var found)
             : Calls.FindAllBuildCache(node.Pointer, Slots.TreeScopeChildren, _condition, _request, out found);
         if (hr < 0 || found == IntPtr.Zero)
@@ -202,7 +268,7 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         }
     }
 
-    public bool IsWebWrapper(NodeProperties properties) => _chromiumProvenance && WebWrapper.Matches(properties);
+    public bool IsWebWrapper(ElementProperties properties) => _chromiumProvenance && WebWrapper.Matches(properties);
 
     public void Dispose()
     {
@@ -211,6 +277,9 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         _request = IntPtr.Zero;
         _condition = IntPtr.Zero;
     }
+
+    private static bool IsChromiumClass(LocatorField<string> className) =>
+        className.Kind == LocatorFieldKind.Known && className.Value!.Trim() == ChromiumWindowClass;
 
     private static int AppendElements(IntPtr array, List<Element> into)
     {

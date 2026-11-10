@@ -1,6 +1,6 @@
 using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Tree;
-using AgentDesktop.Windows.Uia;
+using AgentDesktop.Windows.Tree.Properties;
 
 namespace AgentDesktop.Windows.Tree;
 
@@ -9,6 +9,31 @@ namespace AgentDesktop.Windows.Tree;
 /// function's whole job is to say what each slot holds and how certain it is.</summary>
 internal static class NameEvidenceFactory
 {
+    /// <summary>What reading an element's <c>LabeledBy</c> relation produced. The COM reads
+    /// happen here; the policy on what they mean lives in <see cref="LabelFromTarget"/>, which
+    /// this function only calls. The relation is one more property in a batch already being
+    /// fetched, and the target's <c>Name</c> and <c>IsPassword</c> are read live, for the
+    /// labelled nodes alone.</summary>
+    internal static LabelOutcome ReadLabel(Element element, bool cached)
+    {
+        var target = cached ? element.CachedElementOf(TreeProperty.LabeledBy) : element.CurrentElementOf(TreeProperty.LabeledBy);
+        if (target is null)
+        {
+            return LabelOutcome.Unlabelled;
+        }
+
+        using (target)
+        {
+            return LabelFromTarget(IsSecure(target), ReadName(target));
+        }
+    }
+
+    private static string? ReadName(Element target) =>
+        target.CurrentName().IsKnown() ? target.CurrentName().Value : null;
+
+    private static bool IsSecure(Element target) =>
+        SecureFromRead(target.CurrentProperty(PropertyUia.ToUiaProperty(TreeProperty.IsPassword)));
+
     /// <summary>What reading an element's `LabeledBy` relation produced. The four outcomes are
     /// not interchangeable, and collapsing any two of them would either lose a name or publish
     /// one that should have been withheld.</summary>
@@ -36,9 +61,9 @@ internal static class NameEvidenceFactory
         _ => true,
     };
 
-    internal static NameEvidence EvidenceOf(NodeProperties properties, LabelOutcome label) => new()
+    internal static NameEvidence EvidenceOf(ElementProperties properties, LabelOutcome label) => new()
     {
-        NativeTitle = properties.NonBlankText(PropertyIds.Name),
+        NativeTitle = properties.Get(TreeProperty.Name).NonBlankText(),
         LabelledByText = label.Kind == LabelOutcomeKind.Labelled ? label.Text : null,
         Description = DescriptionOf(properties),
         Placeholder = PlaceholderOf(properties),
@@ -49,9 +74,9 @@ internal static class NameEvidenceFactory
 
     /// <summary>Folds this platform's own gating into the per-slot status before core sees it,
     /// so no UIA concept crosses into shared code.</summary>
-    internal static NameSlotStatus StatusOf(NodeProperties properties, LabelOutcome label) => new()
+    internal static NameSlotStatus StatusOf(ElementProperties properties, LabelOutcome label) => new()
     {
-        NativeTitle = SlotOf(properties.Get(PropertyIds.Name)),
+        NativeTitle = SlotOf(properties.Get(TreeProperty.Name)),
         LabelledByText = LabelSlot(properties, label),
         Description = DescriptionSlot(properties),
         Placeholder = PlaceholderSlot(properties),
@@ -64,15 +89,15 @@ internal static class NameEvidenceFactory
     /// choice is made here, once, rather than per call site. `HelpText` never doubles as a
     /// placeholder: a property serving two slots is how the same string ends up reported twice
     /// under different names.</summary>
-    internal static string? DescriptionOf(NodeProperties properties) =>
-        properties.NonBlankText(PropertyIds.FullDescription) ?? properties.NonBlankText(PropertyIds.HelpText);
+    internal static string? DescriptionOf(ElementProperties properties) =>
+        properties.Get(TreeProperty.FullDescription).NonBlankText() ?? properties.Get(TreeProperty.HelpText).NonBlankText();
 
     /// <summary>The placeholder input slot, filled from `HelpText` where it is not already the
     /// description. The slot exists so a placeholder-only control (a text field whose only
     /// accessible text is its prompt) can still receive a name.</summary>
-    internal static string? PlaceholderOf(NodeProperties properties) =>
-        properties.NonBlankText(PropertyIds.FullDescription) is not null
-            ? properties.NonBlankText(PropertyIds.HelpText)
+    internal static string? PlaceholderOf(ElementProperties properties) =>
+        properties.Get(TreeProperty.FullDescription).NonBlankText() is not null
+            ? properties.Get(TreeProperty.HelpText).NonBlankText()
             : null;
 
     /// <summary>The placeholder slot's status, mirroring the source rule: when
@@ -80,11 +105,11 @@ internal static class NameEvidenceFactory
     /// tracks the `HelpText` read's certainty; when it is blank or failed, `HelpText` is the
     /// description, there is no placeholder claim, and the slot is suppressed so the placeholder
     /// never double-reports the description.</summary>
-    internal static SlotStatus PlaceholderSlot(NodeProperties properties)
+    internal static SlotStatus PlaceholderSlot(ElementProperties properties)
     {
-        if (properties.NonBlankText(PropertyIds.FullDescription) is not null)
+        if (properties.Get(TreeProperty.FullDescription).NonBlankText() is not null)
         {
-            return SlotOf(properties.Get(PropertyIds.HelpText));
+            return SlotOf(properties.Get(TreeProperty.HelpText));
         }
 
         return SlotStatus.Suppressed;
@@ -94,9 +119,9 @@ internal static class NameEvidenceFactory
     /// resolved label is suppressed outright when `Name` already answered, rather than being
     /// allowed to outrank it. When `Name` is empty the label is admitted, which is the case it
     /// exists for.</summary>
-    internal static SlotStatus LabelSlot(NodeProperties properties, LabelOutcome label)
+    internal static SlotStatus LabelSlot(ElementProperties properties, LabelOutcome label)
     {
-        if (properties.NonBlankText(PropertyIds.Name) is not null)
+        if (properties.Get(TreeProperty.Name).NonBlankText() is not null)
         {
             return SlotStatus.Suppressed;
         }
@@ -114,23 +139,18 @@ internal static class NameEvidenceFactory
     /// Only once neither source produced non-blank text does a failed read matter, and then it
     /// must cloud the slot rather than let a provider that definitively has nothing look the
     /// same as a read that simply broke.</summary>
-    internal static SlotStatus DescriptionSlot(NodeProperties properties)
+    internal static SlotStatus DescriptionSlot(ElementProperties properties)
     {
-        var full = properties.Get(PropertyIds.FullDescription);
-        var help = properties.Get(PropertyIds.HelpText);
-        if (NonBlank(full) is not null || NonBlank(help) is not null)
+        var full = properties.Get(TreeProperty.FullDescription);
+        var help = properties.Get(TreeProperty.HelpText);
+        if (full.NonBlankText() is not null || help.NonBlankText() is not null)
         {
             return SlotStatus.Certain;
         }
 
-        return IsUnknown(full) || IsUnknown(help) ? SlotStatus.Uncertain : SlotStatus.Certain;
+        return full.IsUnknown() || help.IsUnknown() ? SlotStatus.Uncertain : SlotStatus.Certain;
     }
 
-    internal static SlotStatus SlotOf(LocatorField<object> read) =>
-        IsUnknown(read) ? SlotStatus.Uncertain : SlotStatus.Certain;
-
-    private static bool IsUnknown(LocatorField<object> read) => read.Kind == LocatorFieldKind.Unknown;
-
-    private static string? NonBlank(LocatorField<object> read) =>
-        read.Value is string text && !string.IsNullOrWhiteSpace(text) ? text : null;
+    internal static SlotStatus SlotOf(PropertyOutcome outcome) =>
+        outcome.IsUnknown() ? SlotStatus.Uncertain : SlotStatus.Certain;
 }

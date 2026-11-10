@@ -1,0 +1,28 @@
+ResolveAnchor.cs
+   0103: The name 'Descent' does not exist in the current context
+   0117: 'ResolveMatch' does not contain a definition for 'StaleRefError'
+   0117: 'ResolveSearch' does not contain a definition for 'IdentityUnknownError'
+   0117: 'UiaTreeSource' does not contain a definition for 'ForRoot'
+   0234: The type or namespace name 'IntoVerifiedHandle' does not exist in the namespace 'AgentDesktop.Windows.Tree.Resolve' (are you missing an assembly reference?)
+   0234: The type or namespace name 'ResolveWindowRoot' does not exist in the namespace 'AgentDesktop.Windows.Tree.Resolve' (are you missing an assembly reference?)
+   0234: The type or namespace name 'RetryIncompleteUntil' does not exist in the namespace 'AgentDesktop.Windows.Tree.Resolve' (are you missing an assembly reference?)
+   0428: Cannot convert method group 'IsUnknown' to non-delegate type 'bool'. Did you intend to invoke the method?
+   0837: The first operand of an 'is' or 'as' operator may not be a lambda expression, anonymous method, or method group.
+   1061: 'RefScope' does not contain a definition for 'Path' and no accessible extension method 'Path' accepting a first argument of type 'RefScope' could be found (are you missing a using directive or an assembly reference?)
+   8130: Cannot infer the type of implicitly-typed deconstruction variable '_'.
+   8130: Cannot infer the type of implicitly-typed deconstruction variable 'evidence'.
+   8183: Cannot infer the type of implicitly-typed discard.
+   8524: The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value. For example, the pattern '(AgentDesktop.Windows.Tree.AutomationClassify.ReadDisposition)4' is not covered.
+HitTestCorroborate.cs
+   0029: Cannot implicitly convert type 'AgentDesktop.Core.Systems.ProcessId?' to 'uint?'
+   0103: The name 'HitTestImp' does not exist in the current context
+   0117: 'NameEvidenceFactory' does not contain a definition for 'NameFields'
+   0117: 'NameEvidenceFactory' does not contain a definition for 'ReadLabel'
+   0117: 'Roles' does not contain a definition for 'ResolveRole'
+   0246: The type or namespace name 'LocatorField<>' could not be found (are you missing a using directive or an assembly reference?)
+Observe.cs
+   0305: Using the generic type 'Walk<TNode>' requires 1 type arguments
+   1061: 'RefProcess' does not contain a definition for 'ProcessInstance' and no accessible extension method 'ProcessInstance' accepting a first argument of type 'RefProcess' could be found (are you missing a using directive or an assembly reference?)
+   1061: 'WalkOutcome' does not contain a definition for 'Stats' and no accessible extension method 'Stats' accepting a first argument of type 'WalkOutcome' could be found (are you missing a using directive or an assembly reference?)
+   1061: 'WindowsAdapter' does not contain a definition for 'RendererActivationAttempted' and no accessible extension method 'RendererActivationAttempted' accepting a first argument of type 'WindowsAdapter' could be found (are you missing a using directive or an assembly reference?)
+   1061: 'string' does not contain a definition for 'DeepClone' and no accessible extension method 'DeepClone' accepting a first argument of type 'string' could be found (are you missing a using directive or an assembly reference?)

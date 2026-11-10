@@ -1,10 +1,15 @@
+using System.Text.Json.Serialization;
 using AgentDesktop.Core.Response;
 
 namespace AgentDesktop.Core.Tree;
 
 /// <summary>A rectangle in screen coordinates. Coordinates are bounded and dimensions non-negative.</summary>
 [AgentDesktop.Core.Response.EnvelopeSerialize]
-public readonly partial record struct Rect(double X, double Y, double Width, double Height)
+public readonly partial record struct Rect(
+    [property: JsonPropertyName("x")] double X,
+    [property: JsonPropertyName("y")] double Y,
+    [property: JsonPropertyName("width")] double Width,
+    [property: JsonPropertyName("height")] double Height)
 {
     public const double MaxGeometryMagnitude = 10_000_000.0;
 

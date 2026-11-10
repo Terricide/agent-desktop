@@ -1,3 +1,4 @@
+using AgentDesktop.Windows.Tree.Properties;
 using AgentDesktop.Windows.Uia;
 
 namespace AgentDesktop.Windows.Tree;
@@ -9,16 +10,16 @@ namespace AgentDesktop.Windows.Tree;
 /// Mirrors crates/windows/src/tree/walk/wrapper.rs.</summary>
 internal static class WebWrapper
 {
-    internal static bool Matches(NodeProperties properties)
+    internal static bool Matches(ElementProperties properties)
     {
-        if (properties.Number(PropertyIds.ControlType) is not (ControlTypeIds.Group or ControlTypeIds.Custom or ControlTypeIds.Pane))
+        if (properties.Number(TreeProperty.ControlType) is not (ControlTypeIds.Group or ControlTypeIds.Custom or ControlTypeIds.Pane))
         {
             return false;
         }
 
-        if (properties.NonBlankText(PropertyIds.Name) is not null
-            || properties.NonBlankText(PropertyIds.ValueValue) is not null
-            || properties.NonBlankText(PropertyIds.AutomationId) is not null)
+        if (properties.NonBlankText(TreeProperty.Name) is not null
+            || properties.NonBlankText(TreeProperty.Value) is not null
+            || properties.NonBlankText(TreeProperty.AutomationId) is not null)
         {
             return false;
         }

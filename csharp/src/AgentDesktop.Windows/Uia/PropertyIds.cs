@@ -82,6 +82,8 @@ public static class PropertyIds
 
     public const int AriaRole = 30101;
 
+    public const int ProviderDescription = 30107;
+
     public const int FullDescription = 30159;
 
     public const int IsDialog = 30174;

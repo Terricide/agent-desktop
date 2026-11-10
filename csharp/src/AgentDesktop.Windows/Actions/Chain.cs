@@ -8,17 +8,6 @@ using AgentDesktop.Windows.Uia;
 
 namespace AgentDesktop.Windows.Actions;
 
-/// <summary>Per-rung delivery judgment recorded into an ActionStep, mirroring
-/// DeliveryOutcome in crates/windows/src/actions/chain.rs.</summary>
-internal enum DeliveryOutcome
-{
-    NotDelivered,
-    SatisfiedNoDelivery,
-    DeliveredUnverified,
-    DeliveredVerified,
-    DeliveredUnobserved,
-}
-
 /// <summary>Chain-level configuration shared by every action that runs through the activation chain.</summary>
 internal sealed record ChainDef(string Suggestion, bool ContinueAfterUnverifiedDelivery);
 
@@ -40,23 +29,55 @@ internal static class Chain
         "Refresh the snapshot and retry, or target an element that advertises Invoke or a Legacy default action.",
         false);
 
-    internal static DeliveryOutcome FromDelivery(bool delivered, bool verified) => (delivered, verified) switch
-    {
-        (false, _) => DeliveryOutcome.NotDelivered,
-        (true, false) => DeliveryOutcome.DeliveredUnverified,
-        (true, true) => DeliveryOutcome.DeliveredVerified,
-    };
+    internal static DeliveryOutcome FromDelivery(bool delivered, bool verified) =>
+        DeliveryOutcomeRules.FromDelivery(delivered, verified);
 
-    internal static DeliveryOutcome FromObservation(bool? verified) => verified switch
-    {
-        true => DeliveryOutcome.DeliveredVerified,
-        false => DeliveryOutcome.DeliveredUnverified,
-        null => DeliveryOutcome.DeliveredUnobserved,
-    };
+    internal static DeliveryOutcome FromObservation(bool? verified) =>
+        DeliveryOutcomeRules.FromObservation(verified);
 
     internal static bool TerminatesChain(this DeliveryOutcome outcome) => outcome != DeliveryOutcome.NotDelivered;
 
-    internal static List<ActionStep> Execute(
+    /// <summary>Caps a verification poll window by the remaining action budget, mirroring
+    /// chain.rs capped_verification_end. A budget already spent is the shared timeout error, not
+    /// a zero-length window that would poll forever.</summary>
+    internal static DateTime CappedVerificationEnd(Deadline deadline, TimeSpan cap)
+    {
+        var remaining = deadline.RemainingMs();
+        if (remaining <= 0)
+        {
+            throw deadline.TimeoutError();
+        }
+
+        var local = DateTime.UtcNow.Add(cap);
+        var byRemaining = DateTime.UtcNow.AddMilliseconds(remaining);
+        return local < byRemaining ? local : byRemaining;
+    }
+
+    /// <summary>Runs a verification read and rewrites a failure it raises into the delivery
+    /// disposition, mirroring chain.rs after_delivery: a read that errors after a write was sent
+    /// must not read as an unobserved delivery.</summary>
+    internal static bool AfterDeliveryOf(Func<bool> run)
+    {
+        try
+        {
+            return run();
+        }
+        catch (AdapterError error)
+        {
+            throw AfterDelivery(error);
+        }
+    }
+
+    /// <summary>The error a chain returns when no rung delivered, carrying the chain's suggestion
+    /// and the disposition the rungs recorded.</summary>
+    internal static AdapterError ExhaustedError(ErrorCode code, string message, string suggestion)
+    {
+        return new AdapterError(code, message)
+            .WithSuggestion(suggestion)
+            .WithDisposition(Disposition.NotDelivered());
+    }
+
+    internal static List<ActionStep> ExecuteChain(
         Deadline deadline,
         ChainDef def,
         InteractionPolicy policy,

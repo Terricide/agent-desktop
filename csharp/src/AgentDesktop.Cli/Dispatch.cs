@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using AgentDesktop.Core.Actions;
 using AgentDesktop.Core.Adapter;
 using AgentDesktop.Core.Input;
+using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Refs;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Snapshot;
@@ -39,6 +40,7 @@ public static class Dispatch
             return command.Name switch
             {
                 "snapshot" => Snapshot(command, adapter, snapshots, sessions, session),
+                "find" => Find(command, adapter, snapshots, sessions, session),
                 "list-apps" => ListApps(adapter, command),
                 "list-windows" => ListWindows(adapter, command),
                 "version" => Version(),
@@ -69,6 +71,39 @@ public static class Dispatch
             return Envelope.Err(command.Name, CommandPolicy.SettleUnknownDelivery(error, command.Name));
         }
     }
+
+    private static EnvelopeResponse Find(ParsedCommand command, PlatformAdapter adapter, SnapshotStore snapshots, SessionStore sessions, string? session) =>
+        new FindCommand(adapter, snapshots, sessions).Run(
+            new FindArgs
+            {
+                Scope = new FindScopeArgs
+                {
+                    App = command.Value("app"),
+                    WindowId = command.Value("window-id"),
+                    Root = command.Value("root"),
+                },
+                Filter = new FindFilterArgs
+                {
+                    Role = command.Value("role"),
+                    Name = command.Value("name"),
+                    Description = command.Value("description"),
+                    NativeId = command.Value("native-id"),
+                    Value = command.Value("value"),
+                    Text = command.Value("text"),
+                    Exact = command.IsSet("exact"),
+                },
+                StateFlags = command.Value("state")?.Split(',').ToList() ?? new List<string>(),
+                Selection = new FindSelectionArgs
+                {
+                    Count = command.IsSet("count"),
+                    First = command.IsSet("first"),
+                    Last = command.IsSet("last"),
+                    Nth = command.Integer("nth"),
+                    Limit = command.Integer("limit"),
+                },
+                TimeoutMs = command.Integer("timeout-ms"),
+            },
+            session);
 
     private static EnvelopeResponse Snapshot(ParsedCommand command, PlatformAdapter adapter, SnapshotStore snapshots, SessionStore sessions, string? session)
     {
@@ -124,6 +159,12 @@ public static class Dispatch
         SessionStore sessions)
     {
         var combo = Combo.Parse(command.Positional[0]);
+        var refusal = KeyComboGate.Refusal(combo, command.Positional[0], command.IsSet("force"), adapter);
+        if (refusal is not null)
+        {
+            return Envelope.Err(command.Name, refusal);
+        }
+
         return new RefActionCommand(adapter, snapshots, sessions)
             .RunGlobal(command.Name, new Action { Kind = kind, Key = combo }, command.IsSet("headed"));
     }

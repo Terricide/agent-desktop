@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using System.Text;
 
 namespace AgentDesktop.Windows;
@@ -43,7 +44,7 @@ internal static class Interop
     [DllImport("user32.dll")]
     internal static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     internal static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeoutMs, out IntPtr result);
 
     [DllImport("dwmapi.dll")]
@@ -72,6 +73,24 @@ internal static class Interop
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     internal static extern int Process32NextW(IntPtr snapshot, ref ProcessEntry entry);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern int GetNamedPipeClientProcessId(SafeFileHandle pipe, out uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern int GetNamedPipeServerProcessId(SafeFileHandle pipe, out uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern uint GetCurrentProcessId();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern int OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern int TerminateProcess(IntPtr process, uint exitCode);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern int QueryFullProcessImageNameW(IntPtr process, int flags, StringBuilder image, ref int size);
 }
 
 /// <summary>A FILETIME as the platform declares it: two 32-bit halves, 100-nanosecond ticks

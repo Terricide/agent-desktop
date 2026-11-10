@@ -86,7 +86,7 @@ internal static class ScrollAction
         bool axisScrollable,
         string axisName,
         uint amount,
-        System.Action scrollOnce,
+        global::System.Action scrollOnce,
         Func<bool> observeEffect)
     {
         if (deadline.IsExpired())

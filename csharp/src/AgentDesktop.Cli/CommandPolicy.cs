@@ -41,6 +41,12 @@ public static class CommandPolicy
                 .WithSuggestion("Run 'list-apps' and retry with --app <name>");
         }
 
+        if (command.Name == "find"
+            && (command.Value("root") is not null || command.Value("surface") is not null))
+        {
+            return AdapterError.NotSupported("find --root and find --surface");
+        }
+
         return null;
     }
 

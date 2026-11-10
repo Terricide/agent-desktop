@@ -90,7 +90,7 @@ internal static class KeyboardLeg
             new(KeyboardLabel, true, () => KeyboardRung(element, text, deadline)),
         };
 
-        return Chain.Execute(deadline, KeyboardChain, policy, rungs);
+        return Chain.ExecuteChain(deadline, KeyboardChain, policy, rungs);
     }
 
     /// <summary>Presses one chord as real key events, past the same gates.</summary>

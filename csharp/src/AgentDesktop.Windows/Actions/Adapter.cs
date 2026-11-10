@@ -21,21 +21,7 @@ internal sealed class ActionsAdapter : ActionOps
         var deadline = lease.Deadline();
         if (handle.IsNull())
         {
-            // A null handle is the global key target: a chord pressed to whatever window is
-            // frontmost, with no element to gate on, and the target a standalone key hold
-            // would name. Every other action needs an element.
-            if (request.Action.Kind == ActionKind.PressKey)
-            {
-                return GlobalPressKey(request.Action, lease);
-            }
-
-            if (request.Action.Kind is ActionKind.KeyDown or ActionKind.KeyUp)
-            {
-                throw KeyboardSend.KeyStateRefusal(
-                    request.Action.Key!, request.Action.Kind == ActionKind.KeyDown);
-            }
-
-            throw InvalidNativeHandle(true);
+            return NullHandleAction(request.Action, lease);
         }
 
         var element = handle.Downcast<Element>() ?? throw InvalidNativeHandle(false);
@@ -93,6 +79,24 @@ internal sealed class ActionsAdapter : ActionOps
         };
     }
 
+    /// <summary>A null handle names the global key target: a chord pressed to whatever window is
+    /// frontmost, with no element to gate on, and the target a standalone key hold would name.
+    /// Every other action needs an element, and a held key needs one too.</summary>
+    private static ActionResult NullHandleAction(Action action, InteractionLease lease)
+    {
+        if (action.Kind == ActionKind.PressKey)
+        {
+            return GlobalPressKey(action, lease);
+        }
+
+        if (action.Kind is ActionKind.KeyDown or ActionKind.KeyUp)
+        {
+            throw KeyboardSend.KeyStateRefusal(action.Key!, action.Kind == ActionKind.KeyDown);
+        }
+
+        throw InvalidNativeHandle(true);
+    }
+
     /// <summary>The global chord: no element, so no focus-steal gate and no UIPI target to
     /// check. The key events go to the frontmost window, and the release guard ends the sequence
     /// with no key held.</summary>
@@ -120,7 +124,7 @@ internal sealed class ActionsAdapter : ActionOps
         bool legacyAvailable,
         Func<DeliveryOutcome> invoke,
         Func<DeliveryOutcome> legacy) =>
-        Chain.Execute(
+        Chain.ExecuteChain(
             deadline,
             Chain.ClickChain,
             policy,

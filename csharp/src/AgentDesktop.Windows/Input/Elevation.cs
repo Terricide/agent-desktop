@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using AgentDesktop.Core.Response;
+using AgentDesktop.Windows.System.Runtime;
 
 namespace AgentDesktop.Windows.Input;
 
@@ -39,7 +40,26 @@ internal static class Elevation
                 "Run agent-desktop at the target's integrity level, or act on an element that does not cross the UIPI boundary")
             .WithDisposition(DeliverySemantics.NotDelivered());
 
+    /// <summary>The activation-worded refusal for a target strictly above this process. It names window
+    /// activation, not input, because the blocked write is the foreground transition, and it claims no
+    /// delivery: the activation never reached the handle.</summary>
+    internal static AdapterError ActivationElevationDenied() =>
+        new AdapterError(
+            ErrorCode.PermDenied,
+            "The target process runs at a higher integrity level than this process; UIPI blocks window activation across that boundary")
+            .WithPlatformDetail(HResult.ComHresultDetail(HResult.EAccessDenied))
+            .WithDetails("{\"physical_delivery_started\":false}")
+            .WithSuggestion(
+                "Run agent-desktop at the target's integrity level, or activate a window that does not cross the UIPI boundary")
+            .WithDisposition(DeliverySemantics.NotDelivered());
+
     internal static uint? CurrentProcessIntegrityRid() => TokenIntegrityRid(GetCurrentProcess());
+
+    /// <summary>Whether this process runs at the high mandatory label. A token whose integrity this
+    /// process cannot read is not treated as elevated, so a probe that needs elevation is refused
+    /// on an unreadable token rather than run on a guess.</summary>
+    internal static bool IsElevated() =>
+        CurrentProcessIntegrityRid() is { } rid && rid >= SecurityHighRid;
 
     internal static uint? ProcessIntegrityRid(int pid)
     {
@@ -114,6 +134,8 @@ internal static class Elevation
     private const int TokenIntegrityLevel = 25;
 
     private const uint ProcessQueryLimitedInformation = 0x1000;
+
+    private const uint SecurityHighRid = 0x3000;
 
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetCurrentProcess();

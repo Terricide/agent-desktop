@@ -15,6 +15,9 @@ public interface InputOps
     /// <summary>Whether a headed keyboard delivery needs the target window activated first. A compositor that refuses client activation answers false, so core skips a focus the session cannot grant.</summary>
     bool KeyboardNeedsWindowActivation() => true;
 
+    /// <summary>Whether a key combo is dangerous on this platform and must be refused unless the caller forces it. The default blocks nothing; a platform names the shortcuts it guards.</summary>
+    bool IsBlockedCombo(KeyCombo combo) => false;
+
     OperationReport MouseEvent(MouseEvent mouseEvent, InteractionLease lease) =>
         throw AdapterError.NotSupported("mouse_event");
 

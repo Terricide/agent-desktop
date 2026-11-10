@@ -1,4 +1,4 @@
-using AgentDesktop.Windows.Uia;
+using AgentDesktop.Windows.Tree.Properties;
 
 namespace AgentDesktop.Windows.Tree;
 
@@ -11,19 +11,19 @@ internal static class AvailableActions
 
     internal const string ScrollTo = "ScrollTo";
 
-    private static readonly int[] Affordances =
+    private static readonly TreeProperty[] Affordances =
     {
-        PropertyIds.IsInvokePatternAvailable,
-        PropertyIds.IsTogglePatternAvailable,
-        PropertyIds.IsExpandCollapsePatternAvailable,
-        PropertyIds.IsSelectionItemPatternAvailable,
-        PropertyIds.IsValuePatternAvailable,
-        PropertyIds.IsRangeValuePatternAvailable,
-        PropertyIds.IsScrollPatternAvailable,
-        PropertyIds.IsScrollItemPatternAvailable,
+        TreeProperty.InvokeAvailable,
+        TreeProperty.ToggleAvailable,
+        TreeProperty.ExpandCollapseAvailable,
+        TreeProperty.SelectionItemAvailable,
+        TreeProperty.ValueAvailable,
+        TreeProperty.RangeValueAvailable,
+        TreeProperty.ScrollAvailable,
+        TreeProperty.ScrollItemAvailable,
     };
 
-    internal static List<string>? Resolve(NodeProperties properties)
+    internal static List<string>? Resolve(ElementProperties properties)
     {
         if (ReadSetIsUnknown(properties))
         {
@@ -31,27 +31,27 @@ internal static class AvailableActions
         }
 
         var actions = new List<string>();
-        AddWhen(actions, properties.IsTrue(PropertyIds.IsInvokePatternAvailable), Click);
-        AddWhen(actions, properties.IsTrue(PropertyIds.IsTogglePatternAvailable), "Toggle");
-        AddWhen(actions, properties.IsTrue(PropertyIds.IsExpandCollapsePatternAvailable), "Expand");
-        AddWhen(actions, properties.IsTrue(PropertyIds.IsExpandCollapsePatternAvailable), "Collapse");
-        AddWhen(actions, properties.IsTrue(PropertyIds.IsSelectionItemPatternAvailable), "Select");
-        AddWhen(actions, IsWritable(properties, PropertyIds.IsValuePatternAvailable, PropertyIds.ValueIsReadOnly), "SetValue");
-        AddWhen(actions, IsWritable(properties, PropertyIds.IsRangeValuePatternAvailable, PropertyIds.RangeValueIsReadOnly), "SetValue");
-        AddWhen(actions, properties.IsTrue(PropertyIds.IsScrollPatternAvailable), "Scroll");
-        AddWhen(actions, properties.IsTrue(PropertyIds.IsScrollItemPatternAvailable), ScrollTo);
-        AddWhen(actions, properties.NonBlankText(PropertyIds.LegacyDefaultAction) is not null, Click);
-        AddWhen(actions, properties.IsTrue(PropertyIds.IsKeyboardFocusable), "SetFocus");
+        AddWhen(actions, properties.IsTrue(TreeProperty.InvokeAvailable), Click);
+        AddWhen(actions, properties.IsTrue(TreeProperty.ToggleAvailable), "Toggle");
+        AddWhen(actions, properties.IsTrue(TreeProperty.ExpandCollapseAvailable), "Expand");
+        AddWhen(actions, properties.IsTrue(TreeProperty.ExpandCollapseAvailable), "Collapse");
+        AddWhen(actions, properties.IsTrue(TreeProperty.SelectionItemAvailable), "Select");
+        AddWhen(actions, IsWritable(properties, TreeProperty.ValueAvailable, TreeProperty.ValueIsReadOnly), "SetValue");
+        AddWhen(actions, IsWritable(properties, TreeProperty.RangeValueAvailable, TreeProperty.RangeValueIsReadOnly), "SetValue");
+        AddWhen(actions, properties.IsTrue(TreeProperty.ScrollAvailable), "Scroll");
+        AddWhen(actions, properties.IsTrue(TreeProperty.ScrollItemAvailable), ScrollTo);
+        AddWhen(actions, properties.NonBlankText(TreeProperty.LegacyDefaultAction) is not null, Click);
+        AddWhen(actions, properties.IsTrue(TreeProperty.IsKeyboardFocusable), "SetFocus");
         return actions;
     }
 
-    private static bool IsWritable(NodeProperties properties, int available, int readOnly) =>
+    private static bool IsWritable(ElementProperties properties, TreeProperty available, TreeProperty readOnly) =>
         properties.IsTrue(available) && properties.GatedBool(readOnly) == false;
 
-    private static bool ReadSetIsUnknown(NodeProperties properties) =>
+    private static bool ReadSetIsUnknown(ElementProperties properties) =>
         Affordances.All(property => properties.Get(property).IsUnknown())
-        && properties.Get(PropertyIds.LegacyDefaultAction).IsUnknown()
-        && properties.Get(PropertyIds.IsKeyboardFocusable).IsUnknown();
+        && properties.Get(TreeProperty.LegacyDefaultAction).IsUnknown()
+        && properties.Get(TreeProperty.IsKeyboardFocusable).IsUnknown();
 
     private static void AddWhen(List<string> actions, bool condition, string action)
     {

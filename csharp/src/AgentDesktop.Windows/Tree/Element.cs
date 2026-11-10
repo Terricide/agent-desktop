@@ -1,5 +1,8 @@
+using AgentDesktop.Core.Adapter;
 using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Tree;
+using AgentDesktop.Windows.Actions;
+using AgentDesktop.Windows.Tree.Properties;
 using AgentDesktop.Windows.Uia;
 
 namespace AgentDesktop.Windows.Tree;
@@ -18,19 +21,38 @@ internal sealed class Element : IDisposable
 
     private static IntPtr _notSupported;
 
+    private static readonly LocatorField<object> AbsentRead = LocatorField<object>.Absent();
+
+    private static readonly LocatorField<object> UnknownRead = LocatorField<object>.Unknown();
+
+    private static readonly Guid ElementInterfaceId = new("D6A8AD98-039F-483A-A8C9-954C37984804");
+
     private IntPtr _pointer;
+
+    private ProcessPayload? _verified;
 
     internal Element(IntPtr pointer) => _pointer = pointer;
 
     internal IntPtr Pointer => _pointer;
+
+    /// <summary>The process this element's identity was verified against at capture, when a ref stamped one.</summary>
+    internal ProcessPayload? VerifiedProcess => _verified;
+
+    /// <summary>Stamps the verified process on this element and returns it, so the stamped element hands on as is.</summary>
+    internal Element WithVerifiedProcess(uint pid, string token)
+    {
+        _verified = new ProcessPayload(pid, token);
+        return this;
+    }
+
+    /// <summary>Wraps this element in a native handle. Disposing the handle disposes the element.</summary>
+    internal NativeHandle IntoNativeHandle() => NativeHandle.New(this);
 
     internal LocatorField<string> Name() => Text(Slots.ElementGetCachedName);
 
     internal LocatorField<string> AutomationId() => Text(Slots.ElementGetCachedAutomationId);
 
     internal LocatorField<string> ClassName() => Text(Slots.ElementGetCachedClassName);
-
-    internal LocatorField<string> FrameworkId() => Text(Slots.ElementGetCachedFrameworkId);
 
     internal LocatorField<int> ControlType() => Number(Slots.ElementGetCachedControlType);
 
@@ -47,6 +69,10 @@ internal sealed class Element : IDisposable
     internal LocatorField<string> CurrentAutomationId() => Text(Slots.ElementGetAutomationId);
 
     internal LocatorField<string> CurrentClassName() => Text(Slots.ElementGetClassName);
+
+    /// <summary>The UI framework that produced the element. Gates a framework-specific search so a
+    /// classic Win32 control of the same control type cannot match.</summary>
+    internal LocatorField<string> CurrentFrameworkId() => Text(Slots.ElementGetFrameworkId);
 
     internal LocatorField<int> CurrentControlType() => Number(Slots.ElementGetControlType);
 
@@ -84,6 +110,42 @@ internal sealed class Element : IDisposable
     /// <summary>Any live property by id, queried directly from the provider.</summary>
     internal LocatorField<object> CurrentProperty(int propertyId) => ReadProperty(Slots.ElementGetCurrentPropertyValue, propertyId);
 
+    /// <summary>The element a live element-valued property names, cast from the variant's
+    /// IUnknown. A property that failed to read, a zero pointer, a variant that is not an
+    /// unknown, and an unknown that is not an element all return null, so a caller cannot tell
+    /// "no target" from "the read failed". The returned element owns its pointer.</summary>
+    internal Element? CurrentElementOf(TreeProperty property) => ElementOf(Slots.ElementGetCurrentPropertyValue, PropertyUia.ToUiaProperty(property));
+
+    /// <summary>The element a cached element-valued property names. The target's own cached reads
+    /// are not the ones a label request needs, which is why the label relation's target is read
+    /// live (A15-3).</summary>
+    internal Element? CachedElementOf(TreeProperty property) => ElementOf(Slots.ElementGetCachedPropertyValue, PropertyUia.ToUiaProperty(property));
+
+    private Element? ElementOf(int slot, int propertyId)
+    {
+        if (_pointer == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        var hr = Calls.CallVariantOut(_pointer, slot, propertyId, out var variant);
+        try
+        {
+            if (hr < 0 || variant.Type != Variant.VtUnknown || variant.Pointer == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            var query = global::System.Runtime.InteropServices.Marshal.QueryInterface(
+                variant.Pointer, in ElementInterfaceId, out var target);
+            return query >= 0 && target != IntPtr.Zero ? new Element(target) : null;
+        }
+        finally
+        {
+            Calls.VariantClear(ref variant);
+        }
+    }
+
     /// <summary>Queries the element for a pattern interface by id. The caller must release a non-zero pattern pointer.</summary>
     internal int CurrentPattern(int patternId, out IntPtr pattern)
     {
@@ -95,6 +157,19 @@ internal sealed class Element : IDisposable
 
         return Calls.CallOutPointerWithIntArg(_pointer, Slots.ElementGetCurrentPattern, patternId, out pattern);
     }
+
+    /// <summary>Binds a pattern interface to this element, the C# shape of Rust
+    /// `get_pattern::<T>()`. A pattern the element does not expose throws `UiaException`
+    /// carrying sentinel 0; a call the provider refused carries its HRESULT. The bound
+    /// pattern owns its pointer and releases it on disposal.</summary>
+    internal T GetPattern<T>()
+        where T : class => PatternBinding.FromElement<T>(this);
+
+    /// <summary>The Toggle pattern, the one the toggle command writes through.</summary>
+    internal ITogglePattern GetTogglePattern() => GetPattern<ITogglePattern>();
+
+    /// <summary>The Scroll pattern, the surface the scroll ladder drives.</summary>
+    internal Scroll.IScrollPattern GetScrollPattern() => GetPattern<Scroll.IScrollPattern>();
 
     /// <summary>Resolves this element's `LabeledBy` relation. The caller must release a non-zero
     /// target pointer. A relation the provider does not publish returns zero, which is the
@@ -129,20 +204,20 @@ internal sealed class Element : IDisposable
         switch (variant.Type)
         {
             case Variant.VtEmpty or Variant.VtNull or Variant.VtVoid:
-                return NodeProperties.AbsentRead;
+                return AbsentRead;
             case Variant.VtBool:
                 return LocatorField<object>.Known(variant.Flag != 0);
             case Variant.VtI4 or Variant.VtInt:
                 return LocatorField<object>.Known(variant.Number);
             case Variant.VtBstr:
-                var text = variant.Pointer == IntPtr.Zero ? "" : System.Runtime.InteropServices.Marshal.PtrToStringBSTR(variant.Pointer);
-                return ExceedsEvidenceBound(text) ? NodeProperties.UnknownRead : LocatorField<object>.Known(text);
+                var text = variant.Pointer == IntPtr.Zero ? "" : global::System.Runtime.InteropServices.Marshal.PtrToStringBSTR(variant.Pointer);
+                return ExceedsEvidenceBound(text) ? UnknownRead : LocatorField<object>.Known(text);
             case Variant.VtUnknown:
                 return variant.Pointer != IntPtr.Zero && variant.Pointer == NotSupported()
-                    ? NodeProperties.AbsentRead
-                    : NodeProperties.UnknownRead;
+                    ? AbsentRead
+                    : UnknownRead;
             default:
-                return NodeProperties.UnknownRead;
+                return UnknownRead;
         }
     }
 
@@ -172,13 +247,13 @@ internal sealed class Element : IDisposable
     {
         if (_pointer == IntPtr.Zero)
         {
-            return NodeProperties.UnknownRead;
+            return UnknownRead;
         }
 
         var hr = Calls.CallVariantOut(_pointer, slot, propertyId, out var variant);
         try
         {
-            return hr < 0 ? NodeProperties.UnknownRead : Classify(variant);
+            return hr < 0 ? UnknownRead : Classify(variant);
         }
         finally
         {

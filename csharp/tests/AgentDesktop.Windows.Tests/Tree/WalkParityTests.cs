@@ -2,7 +2,7 @@ using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Tree;
 using AgentDesktop.Core.Wait;
 using AgentDesktop.Windows.Tree;
-using AgentDesktop.Windows.Uia;
+using AgentDesktop.Windows.Tree.Properties;
 using Xunit;
 
 namespace AgentDesktop.Windows.Tests;
@@ -11,13 +11,13 @@ namespace AgentDesktop.Windows.Tests;
 /// can be verified without a desktop session.</summary>
 internal sealed class StubNode : IDisposable
 {
-    internal StubNode(NodeProperties properties, params StubNode[] children)
+    internal StubNode(ElementProperties properties, params StubNode[] children)
     {
         Properties = properties;
         Children = children.ToList();
     }
 
-    internal NodeProperties Properties { get; }
+    internal ElementProperties Properties { get; }
 
     internal LabelOutcome Label { get; init; } = LabelOutcome.Unlabelled;
 
@@ -31,7 +31,7 @@ internal sealed class StubNode : IDisposable
 /// <summary>Stub TreeSource that hands out StubNodes and reports their web-wrapper status.</summary>
 internal sealed class StubTreeSource : TreeSource<StubNode>
 {
-    public NodeProperties Read(StubNode node) => node.Properties;
+    public ElementProperties Read(StubNode node) => node.Properties;
 
     public LabelOutcome ReadLabel(StubNode node) => node.Label;
 
@@ -41,8 +41,8 @@ internal sealed class StubTreeSource : TreeSource<StubNode>
         return 0;
     }
 
-    public bool IsWebWrapper(NodeProperties properties) =>
-        properties.Text(PropertyIds.ClassName) == "Chrome_RenderWidgetHostHWND";
+    public bool IsWebWrapper(ElementProperties properties) =>
+        properties.Text(TreeProperty.ClassName) == "Chrome_RenderWidgetHostHWND";
 }
 
 /// <summary>Verifies NodeBuilder descriptor mapping and Walk logical/raw depth boundary rules.</summary>
@@ -87,7 +87,9 @@ public sealed class WalkParityTests
         Assert.True(candidate.MatchesCapture(candidate));
     }
 
-    private static NodeProperties Props(
+    private static PropertyOutcome Known(PropertyValue value) => new PropertyOutcome.Known(value);
+
+    private static ElementProperties Props(
         int controlType,
         string? name = null,
         string? className = null,
@@ -98,20 +100,20 @@ public sealed class WalkParityTests
         string? fullDescription = null,
         bool isPassword = false)
     {
-        var reads = new Dictionary<int, LocatorField<object>>
+        var reads = new Dictionary<TreeProperty, PropertyOutcome>
         {
-            [PropertyIds.ControlType] = LocatorField<object>.Known(controlType),
-            [PropertyIds.IsEnabled] = LocatorField<object>.Known(true),
-            [PropertyIds.IsPassword] = LocatorField<object>.Known(isPassword),
+            [TreeProperty.ControlType] = Known(new PropertyValue.Number(controlType)),
+            [TreeProperty.IsEnabled] = Known(new PropertyValue.Flag(true)),
+            [TreeProperty.IsPassword] = Known(new PropertyValue.Flag(isPassword)),
         };
-        if (name is not null) reads[PropertyIds.Name] = LocatorField<object>.Known(name);
-        if (className is not null) reads[PropertyIds.ClassName] = LocatorField<object>.Known(className);
-        if (automationId is not null) reads[PropertyIds.AutomationId] = LocatorField<object>.Known(automationId);
-        if (localizedControlType is not null) reads[PropertyIds.LocalizedControlType] = LocatorField<object>.Known(localizedControlType);
-        if (helpText is not null) reads[PropertyIds.HelpText] = LocatorField<object>.Known(helpText);
-        if (ariaRole is not null) reads[PropertyIds.AriaRole] = LocatorField<object>.Known(ariaRole);
-        if (fullDescription is not null) reads[PropertyIds.FullDescription] = LocatorField<object>.Known(fullDescription);
-        return new NodeProperties(reads);
+        if (name is not null) reads[TreeProperty.Name] = Known(new PropertyValue.Text(name));
+        if (className is not null) reads[TreeProperty.ClassName] = Known(new PropertyValue.Text(className));
+        if (automationId is not null) reads[TreeProperty.AutomationId] = Known(new PropertyValue.Text(automationId));
+        if (localizedControlType is not null) reads[TreeProperty.LocalizedControlType] = Known(new PropertyValue.Text(localizedControlType));
+        if (helpText is not null) reads[TreeProperty.HelpText] = Known(new PropertyValue.Text(helpText));
+        if (ariaRole is not null) reads[TreeProperty.AriaRole] = Known(new PropertyValue.Text(ariaRole));
+        if (fullDescription is not null) reads[TreeProperty.FullDescription] = Known(new PropertyValue.Text(fullDescription));
+        return new ElementProperties(reads);
     }
 
     [Fact]
@@ -154,12 +156,12 @@ public sealed class WalkParityTests
             grandchild);
         var root = new StubNode(Props(ControlTypeWindow, name: "Outlook"), wrapper);
 
-        var budget = new WalkBudget(MaxLogicalDepth: 1, MaxRawDepth: 10, MaxSiblings: 100, Deadline.Standard());
+        var budget = new WalkBudget(1, Deadline.Standard()).WithMaxRawDepth(10).WithMaxSiblings(100);
         var observed = new Walk<StubNode>(new StubTreeSource(), budget).Run(root);
 
-        Assert.Null(observed.Root.ChildrenCount);
-        Assert.Single(observed.Root.Children);
-        var wrapperNode = observed.Root.Children[0];
+        Assert.Null(observed.Tree.Root.ChildrenCount);
+        Assert.Single(observed.Tree.Root.Children);
+        var wrapperNode = observed.Tree.Root.Children[0];
         Assert.Null(wrapperNode.ChildrenCount);
         Assert.Single(wrapperNode.Children);
         var buttonNode = wrapperNode.Children[0];
@@ -173,12 +175,12 @@ public sealed class WalkParityTests
         var child = new StubNode(Props(ControlTypeGroup, name: "Section"), leaf);
         var root = new StubNode(Props(ControlTypeWindow, name: "App"), child);
 
-        var budget = new WalkBudget(MaxLogicalDepth: 1, MaxRawDepth: 10, MaxSiblings: 100, Deadline.Standard());
+        var budget = new WalkBudget(1, Deadline.Standard()).WithMaxRawDepth(10).WithMaxSiblings(100);
         var observed = new Walk<StubNode>(new StubTreeSource(), budget).Run(root);
 
-        Assert.Null(observed.Root.ChildrenCount);
-        Assert.Single(observed.Root.Children);
-        var section = observed.Root.Children[0];
+        Assert.Null(observed.Tree.Root.ChildrenCount);
+        Assert.Single(observed.Tree.Root.Children);
+        var section = observed.Tree.Root.Children[0];
         Assert.Empty(section.Children);
         Assert.Equal(1u, section.ChildrenCount);
         Assert.False(section.SubtreeTruncated);

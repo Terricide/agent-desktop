@@ -33,22 +33,22 @@ internal static class WindowRoot
     /// surface other than the window itself, before any UI Automation call.</summary>
     internal static WindowInfo Validate(ObservationRoot root, SnapshotSurface requested)
     {
-        if (root.Element is not null)
+        if (root is ObservationRoot.Element)
         {
             throw AdapterError.NotSupported("element observation root");
         }
 
-        if (root.Window is not { } window)
+        if (root is not ObservationRoot.Window window)
         {
             throw AdapterError.NotSupported("application observation root");
         }
 
-        if (window.IsProcessOwner())
+        if (window.Info.IsProcessOwner())
         {
-            throw AdapterError.AppHasNoWindow(window.App);
+            throw AdapterError.AppHasNoWindow(window.Info.App);
         }
 
-        foreach (var surface in new[] { root.Surface, requested })
+        foreach (var surface in new[] { root.Surface(), requested })
         {
             if (surface != SnapshotSurface.Window)
             {
@@ -56,7 +56,7 @@ internal static class WindowRoot
             }
         }
 
-        return window;
+        return window.Info;
     }
 
     internal static IntPtr Handle(WindowInfo window)

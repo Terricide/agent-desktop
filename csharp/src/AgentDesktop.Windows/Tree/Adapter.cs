@@ -27,7 +27,7 @@ public sealed class TreeAdapter : ObservationOps
         using var element = WindowRoot.Resolve(client, handle, request.Deadline);
         using var prepared = source.PrepareRoot(element);
         var walk = new Walk<Element>(source, WalkBudget.For(request.Options, request.Deadline));
-        var observed = walk.Run(prepared);
+        var (observed, _) = walk.Run(prepared);
         WindowRoot.VerifyOwner(handle, window);
         return observed;
     }
@@ -36,7 +36,7 @@ public sealed class TreeAdapter : ObservationOps
     /// never a partial tree.</summary>
     public AccessibilityNode GetTree(WindowInfo window, TreeOptions options, Deadline deadline) =>
         WholeTree(ObserveTree(
-            new ObservationRoot(window, null, options.Surface),
+            new ObservationRoot.Window(window),
             new ObservationRequest(options, deadline)));
 
     internal static AccessibilityNode WholeTree(ObservedTree observed)

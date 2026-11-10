@@ -60,7 +60,7 @@ internal static class ValueWrite
         var parsed = ParseFiniteDouble(value);
         try
         {
-            return Chain.Execute(
+            return Chain.ExecuteChain(
                 deadline,
                 ValueWriteChain,
                 policy,
@@ -84,7 +84,7 @@ internal static class ValueWrite
     {
         try
         {
-            return Chain.Execute(
+            return Chain.ExecuteChain(
                 deadline,
                 ClearChain,
                 policy,
@@ -103,7 +103,7 @@ internal static class ValueWrite
 
     internal static bool? GatedPatternValueEquals(Element element, string expected)
     {
-        if (NodeProperties.IsLivePassword(element))
+        if (ElementProperties.IsLivePassword(element))
         {
             return null;
         }
@@ -183,7 +183,7 @@ internal static class ValueWrite
                 return DeliveryOutcome.NotDelivered;
             }
 
-            if (NodeProperties.IsLivePassword(element))
+            if (ElementProperties.IsLivePassword(element))
             {
                 return DeliveryOutcome.DeliveredUnobserved;
             }

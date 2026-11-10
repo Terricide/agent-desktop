@@ -67,7 +67,7 @@ internal static class ToggleAndDisclosure
         bool invokeOk,
         Func<DeliveryOutcome> toggle,
         Func<DeliveryOutcome> invoke) =>
-        Chain.Execute(
+        Chain.ExecuteChain(
             deadline,
             ToggleChain,
             policy,
@@ -197,7 +197,7 @@ internal static class ToggleAndDisclosure
         var allowPattern = current != targetState && current != 3;
         var allowInvoke = invokeOk && current == oppositeState;
         var label = wantExpanded ? ExpandLabel : CollapseLabel;
-        return Chain.Execute(
+        return Chain.ExecuteChain(
             deadline,
             DisclosureChain,
             policy,

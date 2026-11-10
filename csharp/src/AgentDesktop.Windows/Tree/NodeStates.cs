@@ -1,4 +1,4 @@
-using AgentDesktop.Windows.Uia;
+using AgentDesktop.Windows.Tree.Properties;
 
 namespace AgentDesktop.Windows.Tree;
 
@@ -19,17 +19,17 @@ internal static class NodeStates
 
     private const int ExpandCollapseStateExpanded = 1;
 
-    private static readonly int[] ReadHealthProbes =
+    private static readonly TreeProperty[] ReadHealthProbes =
     {
-        PropertyIds.IsEnabled,
-        PropertyIds.IsOffscreen,
-        PropertyIds.HasKeyboardFocus,
-        PropertyIds.IsRequiredForForm,
-        PropertyIds.IsPassword,
-        PropertyIds.LegacyState,
+        TreeProperty.IsEnabled,
+        TreeProperty.IsOffscreen,
+        TreeProperty.HasKeyboardFocus,
+        TreeProperty.IsRequiredForForm,
+        TreeProperty.IsPassword,
+        TreeProperty.LegacyState,
     };
 
-    internal static List<string>? Resolve(NodeProperties properties, string role)
+    internal static List<string>? Resolve(ElementProperties properties, string role)
     {
         if (ReadHealthProbes.All(property => properties.Get(property).IsUnknown()))
         {
@@ -37,24 +37,24 @@ internal static class NodeStates
         }
 
         var states = new List<string>();
-        AddWhen(states, properties.Flag(PropertyIds.IsEnabled) == false, "disabled");
-        AddWhen(states, properties.Flag(PropertyIds.IsPassword) == true, "secure");
-        AddWhen(states, properties.Flag(PropertyIds.IsOffscreen) == true, "offscreen");
-        AddWhen(states, properties.Flag(PropertyIds.HasKeyboardFocus) == true, "focused");
-        AddWhen(states, properties.Flag(PropertyIds.IsRequiredForForm) == true, "required");
+        AddWhen(states, properties.Flag(TreeProperty.IsEnabled) == false, "disabled");
+        AddWhen(states, properties.Flag(TreeProperty.IsPassword) == true, "secure");
+        AddWhen(states, properties.Flag(TreeProperty.IsOffscreen) == true, "offscreen");
+        AddWhen(states, properties.Flag(TreeProperty.HasKeyboardFocus) == true, "focused");
+        AddWhen(states, properties.Flag(TreeProperty.IsRequiredForForm) == true, "required");
         if (role is "checkbox" or "switch" or "radiobutton")
         {
-            var toggle = properties.GatedNumber(PropertyIds.ToggleState);
+            var toggle = properties.GatedNumber(TreeProperty.ToggleState);
             AddWhen(states, toggle == ToggleStateOn, "checked");
             AddWhen(states, toggle == ToggleStateIndeterminate, "indeterminate");
         }
 
-        AddWhen(states, properties.GatedNumber(PropertyIds.ExpandCollapseState) == ExpandCollapseStateExpanded, "expanded");
-        AddWhen(states, properties.GatedBool(PropertyIds.SelectionItemIsSelected) == true, "selected");
-        AddWhen(states, properties.GatedBool(PropertyIds.ValueIsReadOnly) == true, "readonly");
-        AddWhen(states, properties.GatedBool(PropertyIds.SelectionCanSelectMultiple) == true, "multiselectable");
-        AddWhen(states, properties.GatedBool(PropertyIds.WindowIsModal) == true, "modal");
-        if (properties.Number(PropertyIds.LegacyState) is { } bits)
+        AddWhen(states, properties.GatedNumber(TreeProperty.ExpandCollapseState) == ExpandCollapseStateExpanded, "expanded");
+        AddWhen(states, properties.GatedBool(TreeProperty.SelectionItemIsSelected) == true, "selected");
+        AddWhen(states, properties.GatedBool(TreeProperty.ValueIsReadOnly) == true, "readonly");
+        AddWhen(states, properties.GatedBool(TreeProperty.SelectionCanSelectMultiple) == true, "multiselectable");
+        AddWhen(states, properties.GatedBool(TreeProperty.WindowIsModal) == true, "modal");
+        if (properties.Number(TreeProperty.LegacyState) is { } bits)
         {
             AddWhen(states, role == "button" && (bits & StateSystemPressed) != 0, "pressed");
             AddWhen(states, (bits & StateSystemHasPopup) != 0, "haspopup");

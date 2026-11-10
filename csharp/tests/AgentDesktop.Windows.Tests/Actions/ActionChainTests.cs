@@ -6,6 +6,7 @@ using AgentDesktop.Core.Tree;
 using AgentDesktop.Core.Wait;
 using AgentDesktop.Windows.Actions;
 using AgentDesktop.Windows.Tree;
+using AgentDesktop.Windows.Tree.Properties;
 using AgentDesktop.Windows.Uia;
 using Xunit;
 using Action = AgentDesktop.Core.Actions.Action;
@@ -177,13 +178,13 @@ public sealed class ActionChainTests
     [Fact]
     public void CandidateIdentityMatchesCaptureIdentityAcrossAllFields()
     {
-        var props = new NodeProperties(new Dictionary<int, LocatorField<object>>
-        {
-            [PropertyIds.ControlType] = LocatorField<object>.Known(50000),
-            [PropertyIds.Name] = LocatorField<object>.Known("Save"),
-            [PropertyIds.AutomationId] = LocatorField<object>.Known("save-btn"),
-            [PropertyIds.HelpText] = LocatorField<object>.Known("Save document"),
-        });
+        var props = ElementProperties.FromReads(
+        [
+            (TreeProperty.ControlType, new PropertyOutcome.Known(new PropertyValue.Number(50000))),
+            (TreeProperty.Name, new PropertyOutcome.Known(new PropertyValue.Text("Save"))),
+            (TreeProperty.AutomationId, new PropertyOutcome.Known(new PropertyValue.Text("save-btn"))),
+            (TreeProperty.HelpText, new PropertyOutcome.Known(new PropertyValue.Text("Save document"))),
+        ]);
 
         var candidate = ElementResolve.CandidateIdentity(props, "w1");
         Assert.Equal("button", candidate.Role);

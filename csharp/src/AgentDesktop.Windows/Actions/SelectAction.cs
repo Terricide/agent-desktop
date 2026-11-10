@@ -241,7 +241,7 @@ internal static class SelectAction
         element.CurrentProperty(PropertyIds.IsSelectionItemPatternAvailable).Value is true;
 
     private static bool NameMatches(Element element, string value) =>
-        !NodeProperties.IsLivePassword(element)
+        !ElementProperties.IsLivePassword(element)
         && element.CurrentName() is { Kind: LocatorFieldKind.Known, Value: var name }
         && name == value;
 

@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Tree;
+using AgentDesktop.Windows.Input;
 
 namespace AgentDesktop.Windows;
 
@@ -107,6 +108,46 @@ internal static class WindowEnum
         return pid == 0 ? null : pid;
     }
 
+    /// <summary>Whether a window's owning thread answers the liveness ping. A window with no owner
+    /// answers nothing, so it fails closed. A same-process window is pinged directly: its thread is
+    /// one we can block, and a thread that never dispatches fails. A window owned by another process
+    /// is pinged only when this caller is elevated, because the probe cannot report a timeout it is
+    /// not permitted to observe in a foreign thread, so an unelevated caller accepts the window on
+    /// the owner check alone.</summary>
+    internal static bool WindowIsResponsive(IntPtr window)
+    {
+        var owner = LiveWindowOwner(window);
+        if (owner is null)
+        {
+            return false;
+        }
+
+        if (Interop.GetWindowThreadProcessId(window, out _) == 0)
+        {
+            return false;
+        }
+
+        if (owner == unchecked((uint)Environment.ProcessId))
+        {
+            return Ping(window) != IntPtr.Zero;
+        }
+
+        if (!Elevation.IsElevated())
+        {
+            return true;
+        }
+
+        return Ping(window) != IntPtr.Zero && Marshal.GetLastWin32Error() != ErrorTimeout;
+    }
+
+    private static IntPtr Ping(IntPtr window) =>
+        Interop.SendMessageTimeoutW(window, WmNull, IntPtr.Zero, IntPtr.Zero, SmtoAbortIfHung, ProbeMs, out _);
+
+    private const uint WmNull = 0;
+    private const uint SmtoAbortIfHung = 0x0002;
+    private const uint ProbeMs = 250;
+    private const int ErrorTimeout = 1460;
+
     /// <summary>Whether a handle is the desktop's foreground window right now.</summary>
     internal static bool IsForegroundWindow(IntPtr window) => Interop.GetForegroundWindow() == window;
 
@@ -122,7 +163,7 @@ internal static class WindowEnum
             return "";
         }
 
-        var buffer = new System.Text.StringBuilder(512);
+        var buffer = new global::System.Text.StringBuilder(512);
         return Interop.GetWindowTextW(window, buffer, buffer.Capacity) <= 0 ? "" : buffer.ToString();
     }
 
@@ -130,7 +171,7 @@ internal static class WindowEnum
     /// The class is the evidence a frame-host window is recognised by, never a name.</summary>
     internal static string? WindowClassName(IntPtr window)
     {
-        var buffer = new System.Text.StringBuilder(256);
+        var buffer = new global::System.Text.StringBuilder(256);
         return Interop.GetClassNameW(window, buffer, buffer.Capacity) <= 0 ? null : buffer.ToString();
     }
 

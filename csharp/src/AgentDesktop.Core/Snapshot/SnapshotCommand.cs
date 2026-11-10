@@ -18,6 +18,10 @@ public sealed class SnapshotCommand
     /// <summary>The ceiling on nodes one observation may walk, shared with the adapter's budget.</summary>
     public const int MaxObservationNodes = 50_000;
 
+    /// <summary>A captured tree: the refmap it published, the ref-allocated tree, the window it
+    /// was captured from, and whether the observation was complete.</summary>
+    public sealed record CapturedTree(RefMap Map, AccessibilityNode Root, WindowInfo Window, bool Complete, SnapshotBudget Budget);
+
     public SnapshotCommand(PlatformAdapter adapter, SnapshotStore snapshots, SessionStore sessions)
     {
         _adapter = adapter;
@@ -40,18 +44,33 @@ public sealed class SnapshotCommand
             return Envelope.Err("snapshot", new AdapterError(ErrorCode.AppNotFound, $"Application '{app}' is not running").Unsent());
         }
 
-        var window = PickWindow(apps[0], scope ?? new WindowScope(), deadline);
+        var captured = Capture(apps[0], sessionId, options, maxNodes, scope ?? new WindowScope(), deadline);
+        return Envelope.Ok("snapshot", Data(apps[0].Name, captured.Map, captured.Root, captured.Window, captured.Complete, captured.Budget));
+    }
+
+    /// <summary>One observation, ref-allocated and persisted, without an envelope. `find` runs
+    /// the same capture so the refs it publishes are proven by the one observation it took, and
+    /// a snapshot and a find over the same app see the same tree.</summary>
+    public CapturedTree Capture(AppInfo app, string? sessionId, TreeOptions options, int maxNodes, WindowScope scope, Deadline deadline)
+    {
+        var window = PickWindow(app, scope, deadline);
+        return CaptureWindow(window, sessionId, options, maxNodes, deadline);
+    }
+
+    /// <summary>A capture scoped to a window the caller named, without an app to resolve. A
+    /// window id is the whole scope: the window carries its own app, pid, and process instance.</summary>
+    public CapturedTree CaptureWindow(WindowInfo window, string? sessionId, TreeOptions options, int maxNodes, Deadline deadline)
+    {
         var budget = new SnapshotBudget(Math.Min(maxNodes, MaxObservationNodes));
         var observed = _adapter.ObserveTree(
-            new ObservationRoot(window, null, options.Surface),
+            new ObservationRoot.Window(window),
             new ObservationRequest(options.WithRefIdentityBounds(), deadline));
         var map = new RefMap(SnapshotId.New());
         var root = Assign(observed.Root, window, map, budget, options);
         var complete = observed.Complete && budget.IsComplete;
         FinalizeCaptureUniqueness(map, complete);
         _snapshots.Save(map, _sessions.Namespace(sessionId));
-
-        return Envelope.Ok("snapshot", Data(apps[0].Name, map, root, window, complete, budget));
+        return new CapturedTree(map, root, window, complete, budget);
     }
 
     /// <summary>Records whether each captured ref was uniquely identified over a complete observation.</summary>
@@ -241,7 +260,13 @@ public sealed class SnapshotCommand
             SnapshotId = map.SnapshotId,
             RefId = "e" + (map.Count + 1),
             ObservedToken = node.Identity.RetainedObject,
+            Surface = SnapshotSurface.Window,
+            SourceWindowId = NullIfEmpty(window.Id),
+            SourceWindowTitle = NullIfEmpty(window.Title),
+            SourceApp = NullIfEmpty(window.App),
         },
         Scope = new RefScope { WindowId = window.Id, CompleteObservation = true },
     };
+
+    private static string? NullIfEmpty(string text) => string.IsNullOrEmpty(text) ? null : text;
 }

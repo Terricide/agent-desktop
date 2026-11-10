@@ -16,7 +16,7 @@ namespace AgentDesktop.Windows;
 /// top-level window census and the process table for app and window identity. Every method
 /// the adapter does not implement keeps core's refusal, so a surface the platform does not
 /// support fails closed.</summary>
-public sealed class WindowsAdapter : PlatformAdapter
+public sealed partial class WindowsAdapter : PlatformAdapter
 {
     private readonly TreeAdapter _observation = new();
 

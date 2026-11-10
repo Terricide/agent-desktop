@@ -15,6 +15,13 @@
     <ProjectReference Include="../AgentDesktop.Core/AgentDesktop.Core.csproj" />
   </ItemGroup>
 
+  <!-- The cursor overlay decodes a system cursor image through GDI+, which the
+       net8.0 targeting pack forwards out of System.Drawing to its own package. -->
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="AgentDesktop.Windows.Tests" />
   </ItemGroup>

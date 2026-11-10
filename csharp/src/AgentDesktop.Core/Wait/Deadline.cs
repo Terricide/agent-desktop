@@ -59,11 +59,25 @@ public readonly record struct Deadline(long StartedAt, long ExpiresAt, long Time
         return new ScopeHandle(previous);
     }
 
+    /// <summary>A copy of this budget whose expiry is no later than <paramref name="maximum"/> from now. The
+    /// inherited expiry still bounds the result, so a cap never extends the budget.</summary>
+    public Deadline CappedBy(TimeSpan maximum)
+    {
+        var now = Stopwatch.GetTimestamp();
+        var offset = maximum.TotalMilliseconds * (Stopwatch.Frequency / 1000.0);
+        var expiresAt = offset > long.MaxValue - (double)now
+            ? ExpiresAt
+            : Math.Min(ExpiresAt, now + (long)offset);
+        return this with { ExpiresAt = expiresAt, Capped = Capped || expiresAt < ExpiresAt };
+    }
+
     public bool IsExpired() => Stopwatch.GetTimestamp() >= ExpiresAt;
 
     /// <summary>Wall-clock time spent since this budget started, which the batch reports as
     /// its elapsed time.</summary>
     public long ElapsedMs() => (Stopwatch.GetTimestamp() - StartedAt) * 1000 / Stopwatch.Frequency;
+
+    public TimeSpan Remaining() => TimeSpan.FromMilliseconds(RemainingMs());
 
     public long RemainingMs()
     {

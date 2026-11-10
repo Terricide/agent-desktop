@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using AgentDesktop.Core.Context;
 
 namespace AgentDesktop.Core.Response;
 
@@ -26,6 +27,20 @@ public class AdapterError : Exception
 
     /// <summary>Carries a details object, written as JSON text, so the envelope emits it as an object.</summary>
     public AdapterError WithDetails(JsonObject details) => WithDetails(details.ToJsonString());
+
+    /// <summary>A policy refusal whose recovery suggestion depends on the policy the caller set.</summary>
+    public static AdapterError PolicyDeniedForPolicy(string message, InteractionPolicy policy) =>
+        new AdapterError(ErrorCode.PolicyDenied, message)
+            .WithSuggestion(PolicyDeniedSuggestion(policy))
+            .WithDisposition(DeliverySemantics.NotDelivered());
+
+    private static string PolicyDeniedSuggestion(InteractionPolicy policy) =>
+        policy == InteractionPolicy.Unspecified
+            ? "Headless mode allows only accessibility-backed actions; "
+              + "enable physical interaction in the policy (CLI: --headed) only if cursor/focus "
+              + "movement is intended, otherwise refresh the snapshot or target an element "
+              + "with the needed semantic action"
+            : "Use an explicit mouse/focus command if physical interaction is intended";
 
     public AdapterError WithSuggestion(string suggestion)
     {
@@ -95,6 +110,12 @@ public class AdapterError : Exception
 
     /// <summary>An error for a documented code with no delivery evidence, so the disposition stays unknown.</summary>
     public static AdapterError FromCode(ErrorCode code, string message) => new(code, message);
+
+    /// <summary>An internal failure: the command reached a state this build does not name, so the
+    /// caller-facing code is the one that says the tool itself failed rather than the target
+    /// refused. The caller sets the disposition, because only the command knows whether anything
+    /// reached the application.</summary>
+    public static AdapterError Internal(string message) => new(ErrorCode.Internal, message);
 
     public static AdapterError NotSupported(string method) =>
         new AdapterError(ErrorCode.PlatformNotSupported, $"{method} is not supported on this platform")

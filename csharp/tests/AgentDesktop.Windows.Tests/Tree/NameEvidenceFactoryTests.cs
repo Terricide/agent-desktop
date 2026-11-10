@@ -1,7 +1,7 @@
 using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Tree;
 using AgentDesktop.Windows.Tree;
-using AgentDesktop.Windows.Uia;
+using AgentDesktop.Windows.Tree.Properties;
 using Xunit;
 
 namespace AgentDesktop.Windows.Tests;
@@ -11,29 +11,31 @@ namespace AgentDesktop.Windows.Tests;
 /// authority over `Name`, and the cross-element secure gate on a label.
 public sealed class NameEvidenceFactoryTests
 {
-    private static NodeProperties Props(
+    private static PropertyOutcome Known(PropertyValue value) => new PropertyOutcome.Known(value);
+
+    private static ElementProperties Props(
         string? name = null,
         string? helpText = null,
         string? fullDescription = null,
-        LocatorField<object>? fullDescriptionRead = null,
-        LocatorField<object>? helpTextRead = null,
-        LocatorField<object>? nameRead = null)
+        PropertyOutcome? fullDescriptionRead = null,
+        PropertyOutcome? helpTextRead = null,
+        PropertyOutcome? nameRead = null)
     {
-        var reads = new Dictionary<int, LocatorField<object>>
+        var reads = new Dictionary<TreeProperty, PropertyOutcome>
         {
-            [PropertyIds.IsPassword] = LocatorField<object>.Known(false),
-            [PropertyIds.Name] = NodeProperties.AbsentRead,
-            [PropertyIds.HelpText] = NodeProperties.AbsentRead,
-            [PropertyIds.FullDescription] = NodeProperties.AbsentRead,
+            [TreeProperty.IsPassword] = Known(new PropertyValue.Flag(false)),
+            [TreeProperty.Name] = PropertyOutcome.Absent,
+            [TreeProperty.HelpText] = PropertyOutcome.Absent,
+            [TreeProperty.FullDescription] = PropertyOutcome.Absent,
         };
-        if (name is not null) reads[PropertyIds.Name] = LocatorField<object>.Known(name);
-        if (helpText is not null) reads[PropertyIds.HelpText] = LocatorField<object>.Known(helpText);
-        if (fullDescription is not null) reads[PropertyIds.FullDescription] = LocatorField<object>.Known(fullDescription);
-        if (nameRead is not null) reads[PropertyIds.Name] = nameRead;
-        if (fullDescriptionRead is not null) reads[PropertyIds.FullDescription] = fullDescriptionRead;
-        if (helpTextRead is not null) reads[PropertyIds.HelpText] = helpTextRead;
+        if (name is not null) reads[TreeProperty.Name] = Known(new PropertyValue.Text(name));
+        if (helpText is not null) reads[TreeProperty.HelpText] = Known(new PropertyValue.Text(helpText));
+        if (fullDescription is not null) reads[TreeProperty.FullDescription] = Known(new PropertyValue.Text(fullDescription));
+        if (nameRead is not null) reads[TreeProperty.Name] = nameRead;
+        if (fullDescriptionRead is not null) reads[TreeProperty.FullDescription] = fullDescriptionRead;
+        if (helpTextRead is not null) reads[TreeProperty.HelpText] = helpTextRead;
 
-        return new NodeProperties(reads);
+        return new ElementProperties(reads);
     }
 
     /// The cross-element secure gate. A label's text crosses an element boundary: the referring
@@ -53,8 +55,8 @@ public sealed class NameEvidenceFactoryTests
     [Fact]
     public void AnUnreadIsPasswordFailsClosedAsSecure()
     {
-        Assert.True(NameEvidenceFactory.SecureFromRead(NodeProperties.UnknownRead));
-        Assert.True(NameEvidenceFactory.SecureFromRead(NodeProperties.AbsentRead));
+        Assert.True(NameEvidenceFactory.SecureFromRead(LocatorField<object>.Unknown()));
+        Assert.True(NameEvidenceFactory.SecureFromRead(LocatorField<object>.Absent()));
         Assert.True(NameEvidenceFactory.SecureFromRead(LocatorField<object>.Known(true)));
         Assert.False(NameEvidenceFactory.SecureFromRead(LocatorField<object>.Known(false)));
     }
@@ -96,7 +98,7 @@ public sealed class NameEvidenceFactoryTests
         Assert.Equal(SlotStatus.Uncertain,
             NameEvidenceFactory.PlaceholderSlot(Props(
                 fullDescription: "Details",
-                helpTextRead: NodeProperties.UnknownRead)));
+                helpTextRead: PropertyOutcome.Unknown)));
         Assert.Equal(SlotStatus.Suppressed,
             NameEvidenceFactory.PlaceholderSlot(Props(helpText: "Type here")));
     }
@@ -110,9 +112,9 @@ public sealed class NameEvidenceFactoryTests
         Assert.Equal(SlotStatus.Certain,
             NameEvidenceFactory.DescriptionSlot(Props(
                 fullDescription: "Filters all messages",
-                helpTextRead: NodeProperties.UnknownRead)));
+                helpTextRead: PropertyOutcome.Unknown)));
         Assert.Equal(SlotStatus.Uncertain,
-            NameEvidenceFactory.DescriptionSlot(Props(helpTextRead: NodeProperties.UnknownRead)));
+            NameEvidenceFactory.DescriptionSlot(Props(helpTextRead: PropertyOutcome.Unknown)));
         Assert.Equal(SlotStatus.Certain,
             NameEvidenceFactory.DescriptionSlot(Props()));
     }
@@ -155,18 +157,18 @@ public sealed class NameEvidenceFactoryTests
     [Fact]
     public void ANameReadIsAFieldWithCertainty()
     {
-        Assert.True(Props(nameRead: LocatorField<object>.Unknown()).TextField(PropertyIds.Name).IsUnknown());
-        Assert.True(Props(name: "").TextField(PropertyIds.Name).IsKnown());
-        Assert.Equal("", Props(name: "").TextField(PropertyIds.Name).Value);
-        Assert.True(Props(name: "Save").TextField(PropertyIds.Name).IsKnown());
-        Assert.Equal("Save", Props(name: "Save").TextField(PropertyIds.Name).Value);
+        Assert.True(Props(nameRead: PropertyOutcome.Unknown).TextField(TreeProperty.Name).IsUnknown());
+        Assert.True(Props(name: "").TextField(TreeProperty.Name).IsKnown());
+        Assert.Equal("", Props(name: "").TextField(TreeProperty.Name).Value);
+        Assert.True(Props(name: "Save").TextField(TreeProperty.Name).IsKnown());
+        Assert.Equal("Save", Props(name: "Save").TextField(TreeProperty.Name).Value);
     }
 
     [Fact]
     public void AnUnreadNameIsRefusedAsAnEmptyName()
     {
-        Assert.True(Props(nameRead: LocatorField<object>.Unknown()).TextField(PropertyIds.Name).NonBlankField().IsUnknown());
-        Assert.True(Props(name: "").TextField(PropertyIds.Name).NonBlankField().IsAbsent());
-        Assert.Equal("Save", Props(name: "Save").TextField(PropertyIds.Name).NonBlankField().Value);
+        Assert.True(Props(nameRead: PropertyOutcome.Unknown).TextField(TreeProperty.Name).NonBlankField().IsUnknown());
+        Assert.True(Props(name: "").TextField(TreeProperty.Name).NonBlankField().IsAbsent());
+        Assert.Equal("Save", Props(name: "Save").TextField(TreeProperty.Name).NonBlankField().Value);
     }
 }

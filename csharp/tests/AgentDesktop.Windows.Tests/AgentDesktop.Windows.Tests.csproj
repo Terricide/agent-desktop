@@ -5,8 +5,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>CS1591</NoWarn>
   </PropertyGroup>
+
+  <!-- The adapter under test is Windows-only, so the test assembly declares the
+       same platform support the source declares. Without it every call into the
+       adapter is CA1416, which TreatWarningsAsErrors promotes to an error. -->
+  <ItemGroup>
+    <SupportedPlatform Include="windows" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
