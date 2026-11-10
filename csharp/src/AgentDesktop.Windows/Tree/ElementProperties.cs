@@ -66,6 +66,10 @@ internal sealed class ElementProperties
     internal static bool IsLivePassword(Element element) =>
         WithholdsContent(PropertyUia.ReadOne(element, TreeProperty.IsPassword));
 
+    /// <summary>Overwrites one read. Used to carry a window truth into the read set a projection
+    /// serves, where the element's own provider reported something the window contradicts.</summary>
+    internal void Set(TreeProperty property, PropertyOutcome outcome) => _reads[property] = outcome;
+
     internal PropertyOutcome Get(TreeProperty property) =>
         _reads.TryGetValue(property, out var outcome) ? outcome : PropertyOutcome.Unknown;
 

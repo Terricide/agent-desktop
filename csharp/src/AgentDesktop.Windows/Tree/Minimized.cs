@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Wait;
+using AgentDesktop.Windows.Tree.HitTest;
+using AgentDesktop.Windows.Tree.Properties;
 using AgentDesktop.Windows.Uia;
 
 namespace AgentDesktop.Windows.Tree;
@@ -16,10 +18,17 @@ internal static partial class Minimized
     internal static bool? OwningWindowMinimized(Element element, Deadline deadline)
     {
         deadline.EnsureRemaining();
-        throw AdapterError.NotSupported("owning_window_minimized");
+        if (Walker.ElementRootHwnd(element, deadline) is not nint root || root == 0)
+        {
+            return null;
+        }
+
+        return IsIconic(new IntPtr(root)) != 0;
     }
 
-    /// <summary>WinForms reports unclipped descendants as on-screen; this intersects their scroll viewports.</summary>
+    /// <summary>WinForms reports unclipped descendants as on-screen; this intersects their scroll
+    /// viewports. A viewport that does not contain the element's rectangle means the element is
+    /// clipped out of what the user can see.</summary>
     internal static bool OutsideScrollViewports(Element element, Deadline deadline)
     {
         var visibleField = element.BoundingRectangle();
@@ -29,7 +38,13 @@ internal static partial class Minimized
         }
 
         deadline.EnsureRemaining();
-        throw AdapterError.NotSupported("outside_scroll_viewports");
+        var viewport = Walker.NearestScrollViewportBounds(element, deadline);
+        if (viewport is null)
+        {
+            return false;
+        }
+
+        return HitTestClassify.IntersectRects(visibleField.Value, viewport.Value) is null;
     }
 
     /// <summary>Reports a minimized owner's whole subtree offscreen in the read set.
@@ -39,10 +54,8 @@ internal static partial class Minimized
     /// shown. Overwriting the one flag carries the window truth into every projection the
     /// shared read serves, without touching what the walk or the resolver collect on their
     /// own paths.</summary>
-    internal static void StampMinimizedOffscreen(ElementProperties properties)
-    {
-        throw AdapterError.NotSupported("stamp_minimized_offscreen");
-    }
+    internal static void StampMinimizedOffscreen(ElementProperties properties) =>
+        properties.Set(TreeProperty.IsOffscreen, new PropertyOutcome.Known(new PropertyValue.Flag(true)));
 
     [LibraryImport("user32.dll", EntryPoint = "IsIconic")]
     private static partial int IsIconic(IntPtr hwnd);

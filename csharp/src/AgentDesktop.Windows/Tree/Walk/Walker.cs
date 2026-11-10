@@ -1,8 +1,10 @@
 using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Tree;
+using AgentDesktop.Core.Wait;
 using AgentDesktop.Windows.Tree.Properties;
 using AgentDesktop.Windows.Uia;
+using global::System.Runtime.InteropServices;
 
 namespace AgentDesktop.Windows.Tree;
 
@@ -12,7 +14,7 @@ namespace AgentDesktop.Windows.Tree;
 /// this same traversal rather than forking a second one. No ref is allocated here; core's
 /// allocator is the only allocator in the product. The bounds, the enumeration surface and the
 /// traversal live in <c>WalkBudget</c>, <c>TreeSource</c> and <c>Walk</c>.</summary>
-internal static class Walker
+internal static partial class Walker
 {
     /// <summary>Walks a live UI Automation subtree from an arbitrary root element. The cache
     /// request and the root prefetch are owned here, so the whole walk reads through one
@@ -91,6 +93,214 @@ internal static class Walker
         var states = WalkStates(properties, role);
         var (name, description) = NameFields.Resolve(properties, label);
         return new ResolvedVocabulary(role, WalkAvailableActions(properties), states, name, description);
+    }
+
+    /// <summary>One step up the raw view. Returns false when the step failed for a reason that is
+    /// not exhaustion, so a climb that could not be completed is never read as "no parent": a
+    /// caller that skips a clipping question on that answer is skipping it on a guess. A null
+    /// parent with a true return is the top of the tree.</summary>
+    private static bool TryParentStep(IntPtr walker, Element node, out Element? parent)
+    {
+        parent = null;
+        if (Calls.CallOutPointerWithArg(walker, Slots.WalkerGetParent, node.Pointer, out var result) < 0)
+        {
+            return false;
+        }
+
+        if (result == IntPtr.Zero)
+        {
+            return true;
+        }
+
+        parent = new Element(result);
+        return true;
+    }
+
+    /// <summary>The first non-zero native window handle on the climb from an element to its owning
+    /// window, then <c>GA_ROOT</c> of it. Null answers nothing: the budget expired, the client or
+    /// walker would not build, or the climb never reached a window. Callers treat null as unknown
+    /// and change nothing, because a failed window question must never invent an answer.</summary>
+    internal static nint? ElementRootHwnd(Element start, Deadline deadline)
+    {
+        if (Client.Create(out var client) < 0 || client is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (client.RawViewWalker(out var walker) < 0 || walker == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            try
+            {
+                var handle = FirstNativeHwnd(walker, start, deadline);
+                return handle is int hwnd && hwnd != 0 ? RootOfHwnd(hwnd) : null;
+            }
+            finally
+            {
+                Calls.Release(walker);
+            }
+        }
+        finally
+        {
+            client.Dispose();
+        }
+    }
+
+    /// <summary>Every step is a cross-process call, so the deadline is consulted once per step. The
+    /// start element is borrowed; each parent the climb produces is owned here and released on
+    /// every exit, including the exit that returns a handle.</summary>
+    internal static int? FirstNativeHwnd(IntPtr walker, Element start, Deadline deadline)
+    {
+        var owned = new List<Element>();
+        var current = start;
+        var handle = 0;
+        for (var step = 0; step < WalkBudget.DefaultMaxRawDepth; step++)
+        {
+            deadline.EnsureRemaining();
+            if (current.CurrentNativeWindowHandle() is int found && found != 0)
+            {
+                handle = found;
+                break;
+            }
+
+            if (!TryParentStep(walker, current, out var parent) || parent is null)
+            {
+                break;
+            }
+
+            owned.Add(parent);
+            current = parent;
+        }
+
+        foreach (var element in owned)
+        {
+            element.Dispose();
+        }
+
+        return handle;
+    }
+
+    /// <summary>Maps a window handle to its root with <c>GA_ROOT</c>. A handle that is not a window
+    /// has no root, and this answers null rather than the handle it was given.</summary>
+    internal static nint? RootOfHwnd(nint hwnd) =>
+        hwnd == 0 ? null : Root(hwnd);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetAncestor")]
+    private static partial nint Root(nint hwnd);
+
+    /// <summary>The nearest ancestor that advertises a scrollable viewport, and its rectangle. A
+    /// truncated climb answers null, not a confident "no viewport", because a caller that reads
+    /// that as licence to skip the clipping question is skipping it on a guess.</summary>
+    internal static Rect? NearestScrollViewportBounds(Element target, Deadline deadline)
+    {
+        if (Client.Create(out var client) < 0 || client is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (client.RawViewWalker(out var walker) < 0 || walker == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            try
+            {
+                var owned = new List<Element>();
+                var current = target;
+                for (var step = 0; step < WalkBudget.DefaultMaxRawDepth; step++)
+                {
+                    deadline.EnsureRemaining();
+                    if (PropertyUia.ReadOne(current, TreeProperty.ScrollAvailable) is
+                        PropertyOutcome.Known { Value: PropertyValue.Flag(true) })
+                    {
+                        var bounds = ViewportBounds(current);
+                        foreach (var element in owned)
+                        {
+                            element.Dispose();
+                        }
+
+                        return bounds;
+                    }
+
+                    if (!TryParentStep(walker, current, out var parent) || parent is null)
+                    {
+                        foreach (var element in owned)
+                        {
+                            element.Dispose();
+                        }
+
+                        return null;
+                    }
+
+                    owned.Add(parent);
+                    current = parent;
+                }
+
+                foreach (var element in owned)
+                {
+                    element.Dispose();
+                }
+
+                return null;
+            }
+            finally
+            {
+                Calls.Release(walker);
+            }
+        }
+        finally
+        {
+            client.Dispose();
+        }
+    }
+
+    /// <summary>The viewport's own client area in screen coordinates. A viewport with no native
+    /// window falls back to its bounding rectangle, and a rectangle with no area answers null.</summary>
+    private static Rect? ViewportBounds(Element viewport)
+    {
+        if (viewport.CurrentNativeWindowHandle() is int handle && handle != 0)
+        {
+            var hwnd = new IntPtr(handle);
+            if (GetClientRect(hwnd, out var rect) != 0 && ClientToScreen(hwnd, out var origin) != 0)
+            {
+                return new Rect(
+                    origin.X,
+                    origin.Y,
+                    rect.Right - rect.Left,
+                    rect.Bottom - rect.Top);
+            }
+
+            return null;
+        }
+
+        var bounds = viewport.BoundingRectangle();
+        return bounds.IsKnown() && bounds.Value.Width > 0 && bounds.Value.Height > 0
+            ? bounds.Value
+            : null;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private partial struct NativeRect
+    {
+        public int Left, Top, Right, Bottom;
+    }
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClientRect")]
+    private static partial int GetClientRect(nint hwnd, out NativeRect rect);
+
+    [LibraryImport("user32.dll", EntryPoint = "ClientToScreen")]
+    private static partial int ClientToScreen(nint hwnd, out NativePoint origin);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private partial struct NativePoint
+    {
+        public int X, Y;
     }
 }
 

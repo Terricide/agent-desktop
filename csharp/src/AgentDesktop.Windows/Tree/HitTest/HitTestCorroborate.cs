@@ -8,6 +8,7 @@ using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Tree;
 using AgentDesktop.Core.Wait;
 using AgentDesktop.Windows.Tree.Properties;
+using AgentDesktop.Windows.Uia;
 
 namespace AgentDesktop.Windows.Tree.HitTest;
 
@@ -147,39 +148,58 @@ internal static class HitTestCorroborate
     internal static nint? Nonzero(nint? handle) =>
         handle is nint value && value != 0 ? value : null;
 
-    /// <summary>
-    /// Walks to the first non-zero native window handle, then <c>GA_ROOT</c>.
-    /// Returns false when the walk could not be completed.
-    /// </summary>
+    /// <summary>Walks to the first non-zero native window handle, then <c>GA_ROOT</c>. Returns
+    /// false when the walk could not be completed. The climb rides the raw view walker, not the
+    /// batching tree source, because a cached source has no parent step.</summary>
     internal static bool TryElementRootHwnd(
         Element start,
-        UiaTreeSource walker,
         Deadline deadline,
         out nint? root)
     {
-        if (!TryFirstNativeHwnd(start, walker, deadline, out nint? handle))
+        if (!TryFirstNativeHwnd(start, deadline, out nint? handle))
         {
             root = null;
             return false;
         }
+
         root = handle is nint hwnd ? RootOfHwnd(hwnd) : null;
         return true;
     }
 
-    /// <remarks>
-    /// SEAM: HitTestCorroborate.cs:TryFirstNativeHwnd needs `Element.Clone`,
-    /// `Element.TryGetNativeWindowHandle` and `Walk.TryParentStep`. `Element` copies nothing and
-    /// reads no window handle, and `Walk` is a generic walk over a source, not a parent-step
-    /// helper, so the climb cannot start, cannot test a handle, and cannot step to a parent. Until
-    /// those members are ported, this path refuses by name.
-    /// </remarks>
-    internal static bool TryFirstNativeHwnd(
-        Element start,
-        UiaTreeSource walker,
-        Deadline deadline,
-        out nint? handle)
+    /// <summary>The first non-zero <c>NativeWindowHandle</c> on the climb from an element to its
+    /// owning window. A zero handle is the normal shape for a control inside a window, so the climb
+    /// keeps going up until it finds one. False answers that the climb could not be completed - the
+    /// budget expired, the client or walker would not build, or it reached the top without finding a
+    /// handle - which is not the same answer as "the element has no window".</summary>
+    internal static bool TryFirstNativeHwnd(Element start, Deadline deadline, out nint? handle)
     {
-        throw AdapterError.NotSupported("climb from an element to its first native window handle");
+        handle = 0;
+        if (Client.Create(out var client) < 0 || client is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (client.RawViewWalker(out var walker) < 0 || walker == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                handle = Walker.FirstNativeHwnd(walker, start, deadline);
+                return true;
+            }
+            finally
+            {
+                Calls.Release(walker);
+            }
+        }
+        finally
+        {
+            client.Dispose();
+        }
     }
 
     internal static nint? RootOfHwnd(nint hwnd)
@@ -291,7 +311,7 @@ internal static class HitTestCorroborate
         InterceptionContext context,
         bool demoteForViewport)
     {
-        if (!TryElementRootHwnd(context.Hit, context.Walker, context.Deadline, out nint? hitRoot))
+        if (!TryElementRootHwnd(context.Hit, context.Deadline, out nint? hitRoot))
         {
             return HitTestClassify.ResultForIncompleteWalk();
         }

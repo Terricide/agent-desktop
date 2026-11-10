@@ -235,7 +235,7 @@ internal static class ScrollIntoView
         var offscreenField = element.CurrentIsOffscreen();
         Rect? bounds = boundsField.IsKnown() ? boundsField.Value : null;
         bool? offscreen = offscreenField.IsKnown() ? offscreenField.Value : null;
-        return new VisibilitySample(bounds, offscreen, ScrollViewportBounds(element));
+        return new VisibilitySample(bounds, offscreen, ScrollViewportBounds(element, deadline));
     }
 
     private static Rect? KnownBounds(Element element) =>
@@ -244,6 +244,6 @@ internal static class ScrollIntoView
     private static Rect? CompletedBounds(Rect? bounds) =>
         bounds is { Width: > 0, Height: > 0 } rect ? rect : null;
 
-    private static Rect? ScrollViewportBounds(Element element) =>
-        throw AdapterError.NotSupported("nearest_scroll_viewport");
+    private static Rect? ScrollViewportBounds(Element element, Deadline deadline) =>
+        Walker.NearestScrollViewportBounds(element, deadline);
 }

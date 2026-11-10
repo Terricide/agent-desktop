@@ -4,6 +4,7 @@ using AgentDesktop.Core.Tree;
 using AgentDesktop.Windows.Actions;
 using AgentDesktop.Windows.Tree.Properties;
 using AgentDesktop.Windows.Uia;
+using PropertyIds = AgentDesktop.Windows.Uia.PropertyIds;
 
 namespace AgentDesktop.Windows.Tree;
 
@@ -109,6 +110,16 @@ internal sealed class Element : IDisposable
 
     /// <summary>Any live property by id, queried directly from the provider.</summary>
     internal LocatorField<object> CurrentProperty(int propertyId) => ReadProperty(Slots.ElementGetCurrentPropertyValue, propertyId);
+
+    /// <summary>The HWND of the window this element belongs to. Null answers nothing: the property
+    /// would not read, or reported a shape that is not an integer. A zero handle is a real answer
+    /// meaning the element has no window of its own, which is the normal shape for a control
+    /// inside a window, so a caller must distinguish zero from null.</summary>
+    internal int? CurrentNativeWindowHandle()
+    {
+        var field = CurrentProperty(PropertyIds.NativeWindowHandle);
+        return field.IsKnown() && field.Value is int handle ? handle : null;
+    }
 
     /// <summary>The element a live element-valued property names, cast from the variant's
     /// IUnknown. A property that failed to read, a zero pointer, a variant that is not an

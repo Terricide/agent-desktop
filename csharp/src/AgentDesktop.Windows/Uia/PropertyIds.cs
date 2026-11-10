@@ -54,6 +54,10 @@ public static class PropertyIds
 
     public const int IsTableItemPatternAvailable = 30039;
 
+    /// <summary>The HWND of the window an element belongs to, if it has one; otherwise 0. A
+    /// control inside a window reports 0, which is success, not failure.</summary>
+    public const int NativeWindowHandle = 30020;
+
     public const int IsTogglePatternAvailable = 30041;
 
     public const int IsValuePatternAvailable = 30043;
