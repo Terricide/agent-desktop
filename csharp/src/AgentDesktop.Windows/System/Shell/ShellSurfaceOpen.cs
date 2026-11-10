@@ -130,12 +130,21 @@ internal static class ShellSurfaceOpen
         }
     }
 
-    /// <remarks>
-    /// SEAM: ShellSurfaceOpen.cs:AutomationClientSeam needs the shared UI Automation client (<c>automation_client()</c>
-    /// in Rust tree/automation.rs). Until it is ported, the foreign-shape path refuses by name.
-    /// </remarks>
-    private static Client AutomationClientSeam() =>
-        throw AdapterError.NotSupported("open a shell surface");
+    /// <summary>
+    /// The shared UI Automation client for the foreign-shape read. Creation is bounded, and a creation
+    /// that fails is reported as the HRESULT that prevented it, because the foreign-shape check is the
+    /// proof that decides whether the surface settled on a shape that is not its own.
+    /// </summary>
+    private static Client AutomationClientSeam()
+    {
+        var hr = Client.Create(out var client);
+        if (hr < 0 || client is null)
+        {
+            throw AdapterError.FromCode(ErrorCode.ActionFailed, $"UI Automation client creation failed with HRESULT 0x{hr:x}");
+        }
+
+        return client;
+    }
 
     private static bool ForeignShapeSettled(ref long? since, bool foreignNow, long now)
     {
