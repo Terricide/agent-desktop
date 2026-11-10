@@ -51,14 +51,18 @@ internal static class Signals
     }
 
     /// <summary>
-    /// SEAM target for the single-pass native windows-and-apps enumeration (Rust
-    /// <c>signal_inventory::capture_windows_and_apps</c>). Its failures must be narrowed to
-    /// <c>TIMEOUT</c> or <c>APP_UNRESPONSIVE</c>, the Rust <c>narrow_to_permitted_codes</c> step, which
-    /// is not yet ported.
+    /// The single-pass native windows-and-apps enumeration. Both passes run under the shared deadline,
+    /// and each is marked complete by the pass returning, not by the census having excluded nothing. A
+    /// census that throws leaves the capture, and the caller narrows what it raises to the codes the poll
+    /// loop can retry on.
     /// </summary>
     private static SignalWindowInventory CaptureWindowsAndApps(Deadline deadline)
     {
-        throw AdapterError.NotSupported("wait --event");
+        deadline.EnsureRemaining();
+        var windows = WindowCensus.Collect(new WindowFilter());
+        deadline.EnsureRemaining();
+        var apps = AppCensus.Collect();
+        return new SignalWindowInventory(windows, apps.Apps, true, true);
     }
 
     /// <summary>
