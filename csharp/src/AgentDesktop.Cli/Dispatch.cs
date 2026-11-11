@@ -71,6 +71,9 @@ public static class Dispatch
                 "mouse-click" => PointerCommand(command, "click", adapter),
                 "mouse-wheel" => PointerCommand(command, "wheel", adapter),
                 "drag" => DragCommand(command, adapter),
+                "clipboard-get" => ClipboardGet(command, adapter),
+                "clipboard-set" => ClipboardSet(command, adapter),
+                "clipboard-clear" => ClipboardClear(command, adapter),
                 _ => Envelope.Err(command.Name, AdapterError.NotSupported(command.Name)),
             };
         }
@@ -261,6 +264,44 @@ public static class Dispatch
         if (!double.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out double x)) return null;
         if (!double.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out double y)) return null;
         return new Point(x, y);
+    }
+
+    /// <summary>`clipboard-get` reads the pasteboard. A pasteboard with no text is a normal empty result,
+    /// not a refusal, so the data says the text is absent.</summary>
+    private static EnvelopeResponse ClipboardGet(ParsedCommand command, PlatformAdapter adapter)
+    {
+        var content = adapter.GetClipboardContent(ClipboardFormat.Text, Deadline.Standard());
+        var data = new JsonObject
+        {
+            ["format"] = "text",
+            ["text"] = content?.Text,
+        };
+        if (content?.Text is string text)
+        {
+            data["length"] = text.Length;
+        }
+
+        return Envelope.Ok(command.Name, data);
+    }
+
+    /// <summary>`clipboard-set` writes the text given as the first positional.</summary>
+    private static EnvelopeResponse ClipboardSet(ParsedCommand command, PlatformAdapter adapter)
+    {
+        if (command.Positional.Count == 0)
+        {
+            return Envelope.Err(command.Name, AdapterError.InvalidArgs("clipboard-set needs the text to write"));
+        }
+
+        using var lease = new InteractionLease(Deadline.Standard(), InteractionPolicy.Physical);
+        return Envelope.Ok(command.Name, ReportData(adapter.SetClipboardContent(
+            new ClipboardContent { Format = ClipboardFormat.Text, Text = command.Positional[0] }, lease)));
+    }
+
+    /// <summary>`clipboard-clear` empties the pasteboard.</summary>
+    private static EnvelopeResponse ClipboardClear(ParsedCommand command, PlatformAdapter adapter)
+    {
+        using var lease = new InteractionLease(Deadline.Standard(), InteractionPolicy.Physical);
+        return Envelope.Ok(command.Name, ReportData(adapter.ClearClipboard(lease)));
     }
 
     private static Direction? DirectionFor(string? name) => name switch
