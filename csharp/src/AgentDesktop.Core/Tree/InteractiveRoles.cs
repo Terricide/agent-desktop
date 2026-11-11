@@ -30,4 +30,8 @@ public static class InteractiveRoles
         }
         return advertisedActions.Any(action => !NonQualifyingActions.Contains(action));
     }
+
+    /// <summary>The node-level form of the same rule, from the actions the node advertises.</summary>
+    public static bool QualifiesForRef(AccessibilityNode node) =>
+        QualifiesForRef(node.Role, new HashSet<string>(node.Presentation.AvailableActions));
 }

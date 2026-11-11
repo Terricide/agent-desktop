@@ -43,7 +43,9 @@ public sealed class FakeAdapter : PlatformAdapter
     public List<WindowInfo> ListWindows(WindowFilter filter, Deadline deadline) => new() { Window };
 
     public ObservedTree ObserveTree(ObservationRoot root, ObservationRequest request) =>
-        new(Tree, true, false, 0);
+        new(Tree, Complete, false, 0);
+
+    public bool Complete { get; set; } = true;
 
     public NativeHandle ResolveElementStrict(RefEntry entry, Deadline deadline)
     {
@@ -69,11 +71,12 @@ public sealed class FakeAdapter : PlatformAdapter
 
 public class SnapshotSliceTests
 {
-    private static (SnapshotCommand, RefActionCommand, StateRoot, FakeAdapter) Slice(AccessibilityNode tree)
+    private static (SnapshotCommand, RefActionCommand, StateRoot, FakeAdapter) Slice(AccessibilityNode tree, bool complete = true)
     {
         var app = new AppInfo { Name = "Notes", Pid = ProcessId.From(42) };
         var window = new WindowInfo { Id = "w1", Title = "Notes", App = "Notes", Pid = app.Pid };
         var adapter = new FakeAdapter(app, window, tree);
+        adapter.Complete = complete;
         var root = new StateRoot(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ad-slice-" + Guid.NewGuid().ToString("N")));
         var sessions = new SessionStore(root);
         var snapshots = new SnapshotStore(root);
@@ -92,11 +95,18 @@ public class SnapshotSliceTests
             Children = children,
         };
 
+    /// <summary>A node whose walk recorded a boundary child count, which is the frame shape the
+    /// capture plans a frame for. A leaf the walk finished is not a frame, so its own count is
+    /// not recorded.</summary>
+    private static AccessibilityNode Frame(string role, string name, List<AccessibilityNode> children, List<string> actions) =>
+        Node(role, name, children, actions) with { ChildrenCount = (uint)children.Count };
+
     [Fact]
     public void SnapshotAllocatesRefsDepthFirstAndPersistsTheRefMap()
     {
-        var leaf = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
-        var tree = Node("group", "Notes", new List<AccessibilityNode> { leaf }, []);
+        var first = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
+        var second = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
+        var tree = Frame("group", "Notes", new List<AccessibilityNode> { first, second }, []);
         var (snapshot, _, root, _) = Slice(tree);
 
         var response = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
@@ -104,17 +114,51 @@ public class SnapshotSliceTests
         var persisted = SnapshotIdOf(response);
 
         Assert.Contains("\"ok\":true", json);
-        Assert.Contains("\"ref_count\":1", json);
+        Assert.Contains("\"ref_count\":2", json);
         Assert.Contains("\"complete\":true", json);
         Assert.Contains("\"ref_id\":\"@" + persisted + ":e1\"", json);
+        Assert.Contains("\"ref_id\":\"@" + persisted + ":e2\"", json);
         Assert.True(File.Exists(System.IO.Path.Combine(root.Snapshots, "default", persisted, "refmap.json")));
+    }
+
+    /// <summary>An element the capture proved unique over the whole window carries its own proof,
+    /// so it is not given a ref: resolution finds it by walking from the frame above it.</summary>
+    [Fact]
+    public void AProvenUniqueLeafIsNotGivenARef()
+    {
+        var leaf = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
+        var tree = Frame("group", "Notes", new List<AccessibilityNode> { leaf }, []);
+        var (snapshot, _, _, _) = Slice(tree);
+
+        var json = snapshot.Run("Notes", null, TreeOptions.Default(), 100).ToJsonString();
+
+        Assert.Contains("\"ref_count\":0", json);
+        Assert.DoesNotContain("\"ref_id\"", json);
+    }
+
+    /// <summary>A frame the capture proved unique is given a ref, because it is the boundary
+    /// resolution reaches its subtree through.</summary>
+    [Fact]
+    public void AProvenUniqueFrameIsGivenARef()
+    {
+        var child = Node("listitem", "Result", new List<AccessibilityNode>(), []);
+        var box = Frame("combobox", "Query", new List<AccessibilityNode> { child }, ["Expand"]);
+        var tree = Frame("group", "Notes", new List<AccessibilityNode> { box }, []);
+        var (snapshot, _, _, _) = Slice(tree);
+
+        var response = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
+        var persisted = SnapshotIdOf(response);
+
+        Assert.Contains("\"ref_count\":1", response.ToJsonString());
+        Assert.Contains("\"ref_id\":\"@" + persisted + ":e1\"", response.ToJsonString());
     }
 
     [Fact]
     public void ARefActionResolvesFromThePersistedCaptureProofAndReturnsTheReport()
     {
-        var leaf = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
-        var tree = Node("group", "Notes", new List<AccessibilityNode> { leaf }, []);
+        var child = Node("listitem", "Result", new List<AccessibilityNode>(), []);
+        var box = Frame("combobox", "Query", new List<AccessibilityNode> { child }, ["Expand"]);
+        var tree = Frame("group", "Notes", new List<AccessibilityNode> { box }, []);
         var (snapshot, action, _, _) = Slice(tree);
 
         var captured = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
@@ -131,8 +175,8 @@ public class SnapshotSliceTests
     [Fact]
     public void ValueWriteActionSerializesVerifiedStepsAndElementValueCommitDetails()
     {
-        var leaf = Node("textfield", "Query", new List<AccessibilityNode>(), ["SetValue"]);
-        var tree = Node("group", "Notes", new List<AccessibilityNode> { leaf }, []);
+        var field = Frame("textfield", "Query", new List<AccessibilityNode> { Node("text", "", new List<AccessibilityNode>(), []) }, ["SetValue"]);
+        var tree = Frame("group", "Notes", new List<AccessibilityNode> { field }, []);
         var (snapshot, action, _, adapter) = Slice(tree);
         adapter.OnAction = request => ActionResult.FromExecution(
             request.Action,
@@ -194,7 +238,8 @@ public class SnapshotSliceTests
     public void ARefFromAnotherSessionsNamespaceIsNotFound()
     {
         var leaf = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
-        var tree = Node("group", "Notes", new List<AccessibilityNode> { leaf }, []);
+        var twin = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
+        var tree = Frame("group", "Notes", new List<AccessibilityNode> { leaf, twin }, []);
         var (snapshot, action, _, _) = Slice(tree);
         var captured = snapshot.Run("Notes", "session-a", TreeOptions.Default(), 100);
         var snapshotId = SnapshotIdOf(captured);
@@ -210,8 +255,8 @@ public class SnapshotSliceTests
     {
         var first = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
         var second = Node("button", "Stop", new List<AccessibilityNode>(), ["Press"]);
-        var tree = Node("group", "Notes", new List<AccessibilityNode> { first, second }, []);
-        var (snapshot, action, _, _) = Slice(tree);
+        var tree = Frame("group", "Notes", new List<AccessibilityNode> { first, second }, []);
+        var (snapshot, action, _, _) = Slice(tree, complete: false);
 
         var captured = snapshot.Run("Notes", null, TreeOptions.Default(), 1);
         var json = captured.ToJsonString();

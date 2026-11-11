@@ -135,7 +135,7 @@ internal static class ElementResolve
         {
             Role = role,
             NativeId = properties.NonBlankText(TreeProperty.AutomationId),
-            StableName = NameField(properties),
+            StableName = FullPredicate.StableNameField(role, NameField(properties), ValueField(properties)),
             Description = fullDescription ?? helpText,
             WindowKey = windowKey,
         };
@@ -146,6 +146,11 @@ internal static class ElementResolve
     /// The first is an incomplete proof, so a ref captured with it cannot be re-identified.</summary>
     private static LocatorField<string> NameField(ElementProperties properties) =>
         properties.TextField(TreeProperty.Name).NonBlankField();
+
+    /// <summary>The value as a field, read the way the node builder reads it, so the live read
+    /// answers the stable-name rule with the same value the capture recorded.</summary>
+    private static LocatorField<string> ValueField(ElementProperties properties) =>
+        properties.Text(TreeProperty.Value).NonBlankToField();
 
     private static void Collect(
         UiaTreeSource source,

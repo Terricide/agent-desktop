@@ -100,7 +100,16 @@ public sealed class SnapshotCommand
             new ObservationRoot.Window(window),
             new ObservationRequest(options.WithRefIdentityBounds(), deadline));
         var map = new RefMap(SnapshotId.New());
-        var root = Assign(observed.Root, window, map, budget, options);
+        var census = new CaptureCensus(observed.Root, observed.Complete);
+        var context = new AllocationContext(
+            window,
+            map,
+            budget,
+            options,
+            census,
+            SkeletonAnchors.Plan(observed.Root, census),
+            observed.Complete);
+        var root = Assign(observed.Root, context, []);
         var complete = observed.Complete && budget.IsComplete;
         FinalizeCaptureUniqueness(map, complete);
         _snapshots.Save(map, _sessions.Namespace(sessionId));
@@ -190,24 +199,41 @@ public sealed class SnapshotCommand
         return data;
     }
 
-    private static AccessibilityNode Assign(AccessibilityNode node, WindowInfo window, RefMap map, SnapshotBudget budget, TreeOptions options)
+    /// <summary>What the walk needs to allocate refs: the window, the map being built, the budget,
+    /// the options, the one whole-window observation counted for proof, the frames the walk
+    /// planned from it, and whether the read covered the whole window.</summary>
+    private sealed record AllocationContext(
+        WindowInfo Window,
+        RefMap Map,
+        SnapshotBudget Budget,
+        TreeOptions Options,
+        CaptureCensus Census,
+        HashSet<string> Anchors,
+        bool Complete);
+
+    /// <summary>Walks the tree in source order, so a node's path is its index chain from the root.
+    /// A ref is allocated for a node that qualifies, and the path is the frame key the capture
+    /// planned, so the frame covering a subtree is keyed by that subtree's position.</summary>
+    private static AccessibilityNode Assign(AccessibilityNode node, AllocationContext context, List<int> path)
     {
-        var qualified = InteractiveRoles.QualifiesForRef(node.Role, new HashSet<string>(node.Presentation.AvailableActions))
-            ? Qualified(map.Add(Capture(node, window, map)), map.SnapshotId)
+        var qualified = QualifiesForRef(node, path, context)
+            ? Qualified(context.Map.Add(Capture(node, path, context)), context.Map.SnapshotId)
             : null;
 
         var children = new List<AccessibilityNode>();
         var cut = false;
-        foreach (var child in node.Children)
+        for (var index = 0; index < node.Children.Count; index++)
         {
-            if (!budget.TryObserve())
+            if (!context.Budget.TryObserve())
             {
                 cut = true;
                 break;
             }
 
-            var collapsible = IsCollapsible(child, options);
-            var assigned = Assign(child, window, map, budget, options);
+            path.Add(index);
+            var collapsible = IsCollapsible(node.Children[index], context.Options);
+            var assigned = Assign(node.Children[index], context, path);
+            path.RemoveAt(path.Count - 1);
             if (collapsible)
             {
                 if (assigned.Children.Count > 0)
@@ -218,7 +244,7 @@ public sealed class SnapshotCommand
                 continue;
             }
 
-            if (options.InteractiveOnly && IsNoise(assigned))
+            if (context.Options.InteractiveOnly && IsNoise(assigned))
             {
                 continue;
             }
@@ -231,9 +257,27 @@ public sealed class SnapshotCommand
             RefId = qualified,
             Children = children,
             SubtreeTruncated = node.SubtreeTruncated || cut,
-            Presentation = options.IncludeBounds ? node.Presentation : node.Presentation with { Bounds = null },
+            Presentation = context.Options.IncludeBounds ? node.Presentation : node.Presentation with { Bounds = null },
         };
     }
+
+    /// <summary>A node gets a ref when its role qualifies, and a frame the capture planned covers
+    /// it; a node whose role qualifies is given a ref only when its subtree is not covered by a
+    /// frame the capture proved unique, since resolution reaches that subtree through the frame.
+    /// A skeleton anchor is the node that carries the evidence, keyed by its parent's frame, so
+    /// the frame resolution walks through to reach the rest is the one it can resolve.
+    ///
+    /// The skeleton-anchor case keeps the frame for a node that carries a native identifier, a
+    /// stable name, or a description, because that node carries identity, so a boundary above it
+    /// cannot prove its whole subtree. A node that carries no evidence cannot be a skeleton
+    /// anchor, and every ancestor of a node that carries evidence is offered as the frame that
+    /// resolution reaches the rest through.</summary>
+    private static bool QualifiesForRef(AccessibilityNode node, List<int> path, AllocationContext context) =>
+        InteractiveRoles.QualifiesForRef(node)
+            ? path.Count == 0 || node.ChildrenCount is not null || !context.Census.Proves(node)
+            : context.Anchors.Contains(PathKey(path));
+
+    private static string PathKey(List<int> path) => string.Join('.', path);
 
     /// <summary>A ref in the tree is snapshot-qualified, the form the CLI accepts as input.
     /// The bare form is the refmap key only.</summary>
@@ -272,40 +316,72 @@ public sealed class SnapshotCommand
     private static bool Blank(LocatorField<string> field) =>
         field.IsKnown() && string.IsNullOrWhiteSpace(field.Value);
 
-    private static RefEntry Capture(AccessibilityNode node, WindowInfo window, RefMap map) => new()
+    private static RefEntry Capture(AccessibilityNode node, List<int> path, AllocationContext context)
     {
-        Process = new RefProcess
+        var window = context.Window;
+        var uniqueAtCapture = context.Census.Proves(node);
+        var entry = new RefEntry
         {
-            Name = window.App,
-            Pid = window.Pid,
-            Instance = window.ProcessInstance,
-        },
-        Identity = new RefEntryIdentity
+            Process = new RefProcess
+            {
+                Name = window.App,
+                Pid = window.Pid,
+                Instance = window.ProcessInstance,
+            },
+            Identity = new RefEntryIdentity
+            {
+                Role = node.Role,
+                NativeId = node.Identity.NativeId?.Value,
+                StableName = FullPredicate.StableNameField(node.Role, node.Identity.Name, node.Identity.Value),
+                Description = node.Identity.Description.ToNullableText(),
+                WindowKey = window.Id,
+                UniqueAtCapture = uniqueAtCapture,
+            },
+            Geometry = new RefGeometry { Bounds = node.Presentation.Bounds },
+            Capabilities = new RefCapabilities
+            {
+                AvailableActions = IsSkeletonAnchor(node, path, context) ? [] : node.Presentation.AvailableActions,
+                UniqueAtCapture = uniqueAtCapture,
+            },
+            Source = new RefSource
+            {
+                SnapshotId = context.Map.SnapshotId,
+                RefId = "e" + (context.Map.Count + 1),
+                ObservedToken = node.Identity.RetainedObject,
+                Surface = SnapshotSurface.Window,
+                SourceWindowId = NullIfEmpty(window.Id),
+                SourceWindowTitle = NullIfEmpty(window.Title),
+                SourceApp = NullIfEmpty(window.App),
+            },
+            Scope = new RefScope { WindowId = window.Id, CompleteObservation = context.Complete },
+            UniquenessReason = uniqueAtCapture
+                ? null
+                : "capture did not prove a unique whole-window match",
+        };
+
+        if (!context.Options.IncludeBounds
+            && FullPredicate.HasMeaningfulIdentity(
+                node.Role,
+                KnownText(node.Identity.Name),
+                KnownText(node.Identity.Value),
+                node.Identity.NativeId?.Value,
+                node.Identity.RetainedObject))
         {
-            Role = node.Role,
-            NativeId = node.Identity.NativeId?.Value,
-            StableName = node.Identity.Name,
-            Description = node.Identity.Description.ToNullableText(),
-            WindowKey = window.Id,
-        },
-        Geometry = new RefGeometry { Bounds = node.Presentation.Bounds },
-        Capabilities = new RefCapabilities
-        {
-            AvailableActions = node.Presentation.AvailableActions,
-            UniqueAtCapture = true,
-        },
-        Source = new RefSource
-        {
-            SnapshotId = map.SnapshotId,
-            RefId = "e" + (map.Count + 1),
-            ObservedToken = node.Identity.RetainedObject,
-            Surface = SnapshotSurface.Window,
-            SourceWindowId = NullIfEmpty(window.Id),
-            SourceWindowTitle = NullIfEmpty(window.Title),
-            SourceApp = NullIfEmpty(window.App),
-        },
-        Scope = new RefScope { WindowId = window.Id, CompleteObservation = true },
-    };
+            entry = entry with { Geometry = entry.Geometry with { Bounds = null } };
+        }
+
+        return entry;
+    }
+
+    /// <summary>The frame a node carries when its role does not qualify and the capture planned
+    /// it, which is the frame resolution reaches a subtree through. A skeleton anchor records no
+    /// advertised actions, because it anchors the subtree it covers and the actions belong to the
+    /// elements inside it.</summary>
+    private static bool IsSkeletonAnchor(AccessibilityNode node, List<int> path, AllocationContext context) =>
+        !InteractiveRoles.QualifiesForRef(node) && context.Anchors.Contains(PathKey(path));
+
+    private static string? KnownText(LocatorField<string> field) =>
+        field.IsKnown() ? field.Value : null;
 
     private static string? NullIfEmpty(string text) => string.IsNullOrEmpty(text) ? null : text;
 }

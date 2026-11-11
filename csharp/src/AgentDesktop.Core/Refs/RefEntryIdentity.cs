@@ -14,6 +14,10 @@ public sealed record RefEntryIdentity
     public string WindowKey { get; init; } = "";
     public string? UniquenessReason { get; init; }
 
+    /// <summary>Whether one complete read of the window proved this capture unique over the
+    /// elements it observed. A capture the proof did not reach is not a unique capture.</summary>
+    public bool UniqueAtCapture { get; init; }
+
     public bool IsCaptureUnique => UniquenessReason is null;
 
     /// <summary>Role plus every recorded stable field. A capture that recorded nothing cannot
