@@ -12,6 +12,14 @@
   <!-- The envelope's JSON writer is generated for each marked type, so the envelope
       path never asks a runtime type model what a type contains. -->
 
+  <!-- The capture census and the skeleton anchor plan are internal, and the rule they
+      share is only checkable from a test that builds a census. -->
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentDesktop.Tests" />
+    <InternalsVisibleTo Include="AgentDesktop.Windows.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../tools/AgentDesktop.SourceGen/AgentDesktop.SourceGen.csproj"
         OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
