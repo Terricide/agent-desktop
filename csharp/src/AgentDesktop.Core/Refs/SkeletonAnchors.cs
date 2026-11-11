@@ -75,18 +75,25 @@ internal static class SkeletonAnchors
         ElementToken.IsElementToken(node.Identity.RetainedObject) || census.Proves(node);
 
     /// <summary>Whether a node carries identity evidence, which is what a skeleton boundary needs
-    /// to resolve: a native identifier, a stable name, or a description. A node carrying no
-    /// evidence cannot be a skeleton anchor, so the node that carries the evidence keeps its own
-    /// frame and every ancestor stays on the frame. A blank string is no evidence, and a field the
-    /// adapter never read is not recorded as one, so a node read through a blank name cannot be a
-    /// skeleton anchor.</summary>
+    /// to resolve: a native identifier, a stable name, a description, bounds, or a provider element
+    /// token. A node carrying no evidence cannot be a skeleton anchor, so the node that carries the
+    /// evidence keeps its own frame and every ancestor stays on the frame. A blank string is no
+    /// evidence, and a field the adapter never read is not recorded as one, so a node read through a
+    /// blank name cannot be a skeleton anchor. A value is not evidence: a text field's value is what
+    /// the user typed into it, and two fields with the same label and different text are the same
+    /// boundary.</summary>
     private static bool CarriesIdentityEvidence(AccessibilityNode node) =>
-        FullPredicate.HasMeaningfulIdentity(
-            node.Role,
-            Known(node.Identity.Name),
-            Known(node.Identity.Value),
-            node.Identity.NativeId?.Value,
-            node.Identity.RetainedObject);
+        ElementToken.IsElementToken(node.Identity.RetainedObject)
+        || NonBlank(node.Identity.Name) is not null
+        || NonBlank(node.Identity.Description) is not null
+        || (node.Identity.NativeId is { } identifier && !string.IsNullOrWhiteSpace(identifier.Value))
+        || node.Presentation.Bounds is not null;
+
+    private static string? NonBlank(LocatorField<string> field)
+    {
+        var text = field.IsKnown() ? field.Value : null;
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
 
     private static string PathKey(List<int> path) => string.Join('.', path);
 
