@@ -141,7 +141,7 @@ public static class Dispatch
         };
 
         return new SnapshotCommand(adapter, snapshots, sessions)
-            .Run(command.Value("app")!, session, options, SnapshotCommand.MaxObservationNodes, scope);
+            .Run(command.Value("app")!, session, options, SnapshotCommand.MaxObservationNodes, scope, command.Integer("timeout-ms"));
     }
 
     private static EnvelopeResponse RefAction(ParsedCommand command, PlatformAdapter adapter, SnapshotStore snapshots, SessionStore sessions, string? session)

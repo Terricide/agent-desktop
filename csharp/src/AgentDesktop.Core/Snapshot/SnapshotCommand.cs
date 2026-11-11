@@ -18,6 +18,11 @@ public sealed class SnapshotCommand
     /// <summary>The ceiling on nodes one observation may walk, shared with the adapter's budget.</summary>
     public const int MaxObservationNodes = 50_000;
 
+    /// <summary>The budget one snapshot gets, the same 3 s Rust gives it. A dense window runs out
+    /// of this budget and answers with the tree it saw, marked partial. A longer budget walks the
+    /// whole window where Rust stops, so the two trees are not the same tree.</summary>
+    public const long DefaultSnapshotTimeoutMs = 3_000;
+
     /// <summary>A captured tree: the refmap it published, the ref-allocated tree, the window it
     /// was captured from, and whether the observation was complete.</summary>
     public sealed record CapturedTree(RefMap Map, AccessibilityNode Root, WindowInfo Window, bool Complete, SnapshotBudget Budget);
@@ -35,9 +40,9 @@ public sealed class SnapshotCommand
 
     private readonly SessionStore _sessions;
 
-    public EnvelopeResponse Run(string? app, string? sessionId, TreeOptions options, int maxNodes, WindowScope? scope = null)
+    public EnvelopeResponse Run(string? app, string? sessionId, TreeOptions options, int maxNodes, WindowScope? scope = null, long? timeoutMs = null)
     {
-        var deadline = Deadline.Standard();
+        var deadline = Deadline.After(timeoutMs ?? DefaultSnapshotTimeoutMs);
         var window = ResolveSurface(string.IsNullOrEmpty(app) ? null : app, scope?.WindowId, deadline);
         var captured = CaptureWindow(window, sessionId, options, maxNodes, deadline);
         return Envelope.Ok("snapshot", Data(window.App, captured.Map, captured.Root, captured.Window, captured.Complete, captured.Budget));
