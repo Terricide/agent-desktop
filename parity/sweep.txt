@@ -1,0 +1,4 @@
+args [] rust nodes 68 cs nodes 68 refs 28 28 diffs 0
+args ['--max-depth', '3'] rust nodes 39 cs nodes 39 refs 21 21 diffs 0
+args ['--max-depth', '4'] rust nodes 56 cs nodes 56 refs 24 24 diffs 0
+args ['--max-depth', '2'] rust nodes 14 cs nodes 14 refs 6 6 diffs 0

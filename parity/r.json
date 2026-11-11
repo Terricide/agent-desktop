@@ -1,0 +1,1 @@
+{"version":"2.6","ok":true,"command":"snapshot","data":{"app":"Notepad.exe","complete":false,"nodes_observed":1,"ref_count":0,"snapshot_id":"s29yecqu50udzj","tree":{"available_actions":["SetFocus"],"name":"Untitled - Notepad","role":"window","role_description":"window"},"truncated":true,"window":{"id":"w-132978354","title":"Untitled - Notepad"}}}

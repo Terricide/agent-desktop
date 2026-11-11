@@ -1,0 +1,345 @@
+== RUST complete False truncated None nodes_observed 19
+ window 'Downloads - File Explorer' cc None kids 2 trunc True
+   group None cc None kids 0 trunc None
+   group 'Downloads' cc None kids 1 trunc True
+     group None cc None kids 1 trunc True
+       group 'Explorer Pane' cc None kids 3 trunc True
+         group None cc None kids 0 trunc None
+         group None cc None kids 0 trunc None
+         group 'Folder Layout Pane' cc None kids 2 trunc True
+           status 'Status bar' cc None kids 3 trunc None
+             group 'Property Field' cc None kids 1 trunc None
+               statictext '1,660 items' cc None kids 0 trunc None
+             group 'Property Field' cc None kids 1 trunc None
+               statictext '1 item selected  4.96 KB' cc None kids 0 trunc None
+             group 'View Modes' cc None kids 2 trunc None
+               radiobutton 'Details' cc None kids 0 trunc None
+               radiobutton 'Large Icons' cc None kids 0 trunc None
+           group 'Control Host' cc None kids 1 trunc True
+             outline 'Navigation Pane' cc None kids 1 trunc True
+               treeitem 'Desktop (OneDrive)' cc None kids 0 trunc True
+== CSHARP complete True truncated None nodes_observed None
+ window 'Downloads - File Explorer' cc None kids 4 trunc None
+   group None cc None kids 0 trunc None
+   group 'Downloads' cc None kids 1 trunc None
+     group None cc None kids 1 trunc None
+       group 'Explorer Pane' cc None kids 3 trunc None
+         group None cc None kids 0 trunc None
+         group None cc None kids 0 trunc None
+         group 'Folder Layout Pane' cc None kids 3 trunc None
+           status 'Status bar' cc None kids 3 trunc None
+             group 'Property Field' cc None kids 1 trunc None
+               statictext '1,660 items' cc None kids 0 trunc None
+             group 'Property Field' cc None kids 1 trunc None
+               statictext '1 item selected  4.96 KB' cc None kids 0 trunc None
+             group 'View Modes' cc None kids 2 trunc None
+               radiobutton 'Details' cc None kids 0 trunc None
+               radiobutton 'Large Icons' cc None kids 0 trunc None
+           group 'Control Host' cc None kids 1 trunc None
+             outline 'Navigation Pane' cc None kids 1 trunc None
+               treeitem 'Desktop (OneDrive)' cc None kids 16 trunc None
+                 treeitem 'Home' cc None kids 0 trunc None
+                 treeitem 'Gallery' cc None kids 0 trunc None
+                 treeitem 'Mark - Absolute Software Corp (OneDrive)' cc None kids 0 trunc None
+                 treeitem 'Mark - Personal (OneDrive)' cc None kids 0 trunc None
+                 treeitem 'Start of Quick Access - Desktop (pinned)' cc None kids 0 trunc None
+                 treeitem 'Downloads (pinned)' cc None kids 0 trunc None
+                 treeitem 'Documents (pinned)' cc None kids 0 trunc None
+                 treeitem 'Pictures (pinned)' cc None kids 0 trunc None
+                 treeitem 'Music (pinned)' cc None kids 0 trunc None
+                 treeitem 'Videos (pinned)' cc None kids 0 trunc None
+                 treeitem 'Vcms' cc None kids 0 trunc None
+                 treeitem 'OpenAI-Proxy' cc None kids 0 trunc None
+                 treeitem 'End of Quick Access - NodeFlow' cc None kids 0 trunc None
+                 treeitem 'This PC' cc None kids 3 trunc None
+                   treeitem 'Local Disk (C:)' cc None kids 0 trunc None
+                   treeitem 'CD Drive (D:)' cc None kids 0 trunc None
+                   treeitem 'Absolute Files (S:)' cc None kids 0 trunc None
+                 treeitem 'Network' cc None kids 0 trunc None
+                 treeitem 'Linux' cc None kids 0 trunc None
+           group 'Shell Folder View' cc None kids 1 trunc None
+             listbox 'Items View' cc None kids 7 trunc None
+               group None cc None kids 0 trunc None
+               scrollbar 'Vertical' cc None kids 4 trunc None
+                 button 'Line up' cc None kids 0 trunc None
+                 handle 'Position' cc None kids 0 trunc None
+                 button 'Page down' cc None kids 0 trunc None
+                 button 'Line down' cc None kids 0 trunc None
+               group 'Header' cc None kids 4 trunc None
+                 menubutton 'Name' cc None kids 1 trunc None
+                   button 'Filter dropdown' cc None kids 0 trunc None
+                 menubutton 'Date modified' cc None kids 1 trunc None
+                   button 'Filter dropdown' cc None kids 0 trunc None
+                 menubutton 'Type' cc None kids 1 trunc None
+                   button 'Filter dropdown' cc None kids 0 trunc None
+                 menubutton 'Size' cc None kids 1 trunc None
+                   button 'Filter dropdown' cc None kids 0 trunc None
+               group 'Yesterday' cc None kids 7 trunc None
+                 group 'Yesterday' cc None kids 2 trunc None
+                   button 'Collapse Group' cc None kids 0 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                 option '20260311_111621 (1).jpg' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'Rapid7-FixOrphanedMsi.ps1' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'Rapid7-FixOrphanedMsi.yaml' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'investigation-99eced469a8f49ce800207af210219a2.zip' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'RFA-2122.xml' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'RFA-2112.xml' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+               group 'Earlier this week' cc None kids 5 trunc None
+                 group 'Earlier this week' cc None kids 2 trunc None
+                   button 'Collapse Group' cc None kids 0 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                 option 'btcli-transfer.zip' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'RFA-2112_attachments.zip' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'RFA-2111_attachments.zip' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'Passenger-windows-x64.exe' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+               group 'Last week' cc None kids 19 trunc None
+                 group 'Last week' cc None kids 2 trunc None
+                   button 'Collapse Group' cc None kids 0 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                 option 'Export_11b49.csv' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'RFA-2078_attachments.zip' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option '3036140Folio-A_410274.pdf' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option '20261014_211742.jpg' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option '20261015_171340.jpg' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'receiptDetails (2).pdf' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'receiptDetails (1).pdf' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'investigation-f03f7bcebdd14075b34e0693cdc091a1.zip' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'report.pdf' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'reboot.report.pdf' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'CA1-non-compliant-apps-enriched-20261103 (1).json' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'CA1-non-compliant-apps-enriched-20261103.json' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'Verismic.MiniLibrary20261102.log' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'RFA-2039_attachments.zip' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'image-20261102-080048.png' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'C4-SE22-27.MiniLibrary20261102.log' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'Exploring Super-agent Design_ Towards a More Autonomous Agent System.pdf' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+                 option 'RFA-2078_attachments_x' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+               group 'Last month' cc None kids 2 trunc None
+                 group 'Last month' cc None kids 2 trunc None
+                   button 'Collapse Group' cc None kids 0 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                 option 'TensorSharp_DeepSeek_V41_Flash_Agent_Investigation.md' cc None kids 4 trunc None
+                   textfield 'Name' cc None kids 0 trunc None
+                   textfield 'Date modified' cc None kids 0 trunc None
+                   textfield 'Type' cc None kids 0 trunc None
+                   textfield 'Size' cc None kids 0 trunc None
+   group None cc None kids 1 trunc None
+     group None cc None kids 8 trunc None
+       tablist None cc None kids 2 trunc None
+         listbox None cc None kids 1 trunc None
+           tab 'Downloads' cc None kids 3 trunc None
+             image None cc None kids 0 trunc None
+             statictext 'Downloads' cc None kids 0 trunc None
+             button 'Close Tab' cc None kids 1 trunc None
+               statictext '\ue711' cc None kids 0 trunc None
+         button 'Add New Tab' cc None kids 1 trunc None
+           statictext '\ue710' cc None kids 0 trunc None
+       toolbar None cc None kids 4 trunc None
+         button 'Back' cc None kids 1 trunc None
+           statictext '\ue72b' cc None kids 0 trunc None
+         button 'Forward' cc None kids 1 trunc None
+           statictext '\ue72a' cc None kids 0 trunc None
+         button 'Up to "mreed" (Alt + Up Arrow)' cc None kids 1 trunc None
+           statictext '\ue74a' cc None kids 0 trunc None
+         button 'Refresh "Downloads" (F5)' cc None kids 1 trunc None
+           statictext '\ue72c' cc None kids 0 trunc None
+       group None cc None kids 1 trunc None
+         textfield 'Address Bar' cc None kids 2 trunc None
+           textfield 'Address Bar' cc None kids 0 trunc None
+           group None cc None kids 0 trunc None
+       menubutton 'This PC' cc None kids 2 trunc None
+         button None cc None kids 1 trunc None
+           image None cc None kids 0 trunc None
+         switch None cc None kids 1 trunc None
+           statictext 'ChevronTextBlock' cc None kids 0 trunc None
+       group None cc None kids 1 trunc None
+         group None cc None kids 6 trunc None
+           menubutton 'More' cc None kids 1 trunc None
+             button 'BreadcrumbBarItemButton' cc None kids 1 trunc None
+               group 'BreadcrumbBarItemGrid' cc None kids 1 trunc None
+                 statictext 'BreadcrumbBarEllipsisTextBlock' cc None kids 0 trunc None
+           menubutton 'This PC' cc None kids 2 trunc None
+             button 'BreadcrumbBarItemButton' cc None kids 1 trunc None
+               group 'BreadcrumbBarItemGrid' cc None kids 1 trunc None
+                 statictext 'This PC' cc None kids 0 trunc None
+             button None cc None kids 1 trunc None
+               statictext 'ChevronTextBlock' cc None kids 0 trunc None
+           menubutton 'Local Disk (C:)' cc None kids 2 trunc None
+             button 'BreadcrumbBarItemButton' cc None kids 1 trunc None
+               group 'BreadcrumbBarItemGrid' cc None kids 1 trunc None
+                 statictext 'Local Disk (C:)' cc None kids 0 trunc None
+             button None cc None kids 1 trunc None
+               statictext 'ChevronTextBlock' cc None kids 0 trunc None
+           menubutton 'Users' cc None kids 2 trunc None
+             button 'BreadcrumbBarItemButton' cc None kids 1 trunc None
+               group 'BreadcrumbBarItemGrid' cc None kids 1 trunc None
+                 statictext 'Users' cc None kids 0 trunc None
+             button None cc None kids 1 trunc None
+               statictext 'ChevronTextBlock' cc None kids 0 trunc None
+           menubutton 'mreed' cc None kids 2 trunc None
+             button 'BreadcrumbBarItemButton' cc None kids 1 trunc None
+               group 'BreadcrumbBarItemGrid' cc None kids 1 trunc None
+                 statictext 'mreed' cc None kids 0 trunc None
+             button None cc None kids 1 trunc None
+               statictext 'ChevronTextBlock' cc None kids 0 trunc None
+           menubutton 'Downloads' cc None kids 2 trunc None
+             button None cc None kids 1 trunc None
+               statictext 'Downloads' cc None kids 0 trunc None
+             button None cc None kids 1 trunc None
+               statictext 'ChevronTextBlock' cc None kids 0 trunc None
+       group None cc None kids 1 trunc None
+         textfield ' Search Downloads' cc None kids 4 trunc None
+           textfield ' Search Downloads' cc None kids 0 trunc None
+           group None cc None kids 0 trunc None
+           statictext ' Search Downloads' cc None kids 0 trunc None
+           button 'Search' cc None kids 1 trunc None
+             statictext '\ue721' cc None kids 0 trunc None
+       toolbar None cc None kids 10 trunc None
+         menubutton 'New' cc None kids 3 trunc None
+           image None cc None kids 0 trunc None
+           statictext 'New' cc None kids 0 trunc None
+           statictext '\ue972' cc None kids 0 trunc None
+         button 'Cut' cc None kids 1 trunc None
+           image None cc None kids 0 trunc None
+         button 'Copy' cc None kids 1 trunc None
+           image None cc None kids 0 trunc None
+         button 'Paste' cc None kids 1 trunc None
+           image None cc None kids 0 trunc None
+         button 'Rename' cc None kids 1 trunc None
+           image None cc None kids 0 trunc None
+         button 'Share' cc None kids 1 trunc None
+           image None cc None kids 0 trunc None
+         button 'Delete' cc None kids 1 trunc None
+           image None cc None kids 0 trunc None
+         menubutton 'Sort' cc None kids 3 trunc None
+           image None cc None kids 0 trunc None
+           statictext 'Sort' cc None kids 0 trunc None
+           statictext '\ue972' cc None kids 0 trunc None
+         menubutton 'View' cc None kids 3 trunc None
+           image None cc None kids 0 trunc None
+           statictext 'View' cc None kids 0 trunc None
+           statictext '\ue972' cc None kids 0 trunc None
+         button 'More options' cc None kids 1 trunc None
+           statictext '\ue712' cc None kids 0 trunc None
+       toolbar None cc None kids 1 trunc None
+         button 'Details' cc None kids 2 trunc None
+           image None cc None kids 0 trunc None
+           statictext 'Details' cc None kids 0 trunc None
+   group None cc None kids 4 trunc None
+     menu 'System' cc None kids 1 trunc None
+       menuitem 'System' cc None kids 0 trunc None
+     button 'Minimize' cc None kids 0 trunc None
+     button 'Maximize' cc None kids 0 trunc None
+     button 'Close' cc None kids 0 trunc None

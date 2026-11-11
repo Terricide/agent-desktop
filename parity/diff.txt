@@ -1,0 +1,41 @@
+nodes 68 68
+DIFF [1, 0, 0, 0, 0, 1, 0]
+  R ([1, 0, 0, 0, 0, 1, 0], 'statictext', '', 'îœ‘', None, None, 0)
+  C ([1, 0, 0, 0, 0, 1, 0], 'statictext', '', '\ue711', None, None, 0)
+DIFF [1, 0, 0, 1, 0]
+  R ([1, 0, 0, 1, 0], 'statictext', '', 'îœ�', None, None, 0)
+  C ([1, 0, 0, 1, 0], 'statictext', '', '\ue710', None, None, 0)
+DIFF [2, 0, 1, 0]
+  R ([2, 0, 1, 0], 'statictext', '', 'î¨™', None, None, 0)
+  C ([2, 0, 1, 0], 'statictext', '', '\uea19', None, None, 0)
+DIFF [2, 0, 2, 0]
+  R ([2, 0, 2, 0], 'statictext', '', 'î£½', None, None, 0)
+  C ([2, 0, 2, 0], 'statictext', '', '\ue8fd', None, None, 0)
+DIFF [2, 0, 3, 0]
+  R ([2, 0, 3, 0], 'statictext', '', 'î£�', None, None, 0)
+  C ([2, 0, 3, 0], 'statictext', '', '\ue8dd', None, None, 0)
+DIFF [2, 0, 4, 0]
+  R ([2, 0, 4, 0], 'statictext', '', 'î£›', None, None, 0)
+  C ([2, 0, 4, 0], 'statictext', '', '\ue8db', None, None, 0)
+DIFF [2, 0, 5, 0]
+  R ([2, 0, 5, 0], 'statictext', '', 'î·\xa0', None, None, 0)
+  C ([2, 0, 5, 0], 'statictext', '', '\uede0', None, None, 0)
+DIFF [2, 0, 6, 0]
+  R ([2, 0, 6, 0], 'statictext', '', 'îœ›', None, None, 0)
+  C ([2, 0, 6, 0], 'statictext', '', '\ue71b', None, None, 0)
+DIFF [2, 0, 7, 0]
+  R ([2, 0, 7, 0], 'statictext', '', 'îªž', None, None, 0)
+  C ([2, 0, 7, 0], 'statictext', '', '\uea9e', None, None, 0)
+DIFF [2, 0, 8, 0]
+  R ([2, 0, 8, 0], 'statictext', '', 'î·�', None, None, 0)
+  C ([2, 0, 8, 0], 'statictext', '', '\ueddd', None, None, 0)
+DIFF [2, 0, 9, 0]
+  R ([2, 0, 9, 0], 'statictext', '', 'ï›‡', None, None, 0)
+  C ([2, 0, 9, 0], 'statictext', '', '\uf6c7', None, None, 0)
+DIFF [2, 0, 10, 0]
+  R ([2, 0, 10, 0], 'statictext', '', 'îž‰', None, None, 0)
+  C ([2, 0, 10, 0], 'statictext', '', '\ue789', None, None, 0)
+total diffs 12
+rust-only keys []
+csharp-only keys []
+data keys R ['app', 'complete', 'ref_count', 'snapshot_id', 'tree', 'window'] C ['app', 'complete', 'ref_count', 'snapshot_id', 'tree', 'window']
