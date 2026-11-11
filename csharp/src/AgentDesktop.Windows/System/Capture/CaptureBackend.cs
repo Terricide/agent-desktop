@@ -145,9 +145,11 @@ internal static class CaptureBackend
         }
     }
 
-    /// <summary>SEAM: <c>system::capture_modern::modern_is_supported</c> is not ported. It reports whether the
-    /// Windows.Graphics.Capture backend can serve this session.</summary>
-    private static bool ModernAvailability() => throw AdapterError.NotSupported("screenshot");
+    /// <summary>Whether the WGC backend can serve this session. The activation surface is not ported, so the
+    /// backend reports itself unsupported. The predicate never refuses: the availability probe reads it to
+    /// decide the screen recording state, and a refusal there would turn an unavailable backend into an error
+    /// that fails a read-only permission report.</summary>
+    private static bool ModernAvailability() => false;
 
     /// <summary>SEAM: <c>system::capture_modern::capture_window</c> is not ported. It captures one window handle at
     /// a scale through the WGC backend.</summary>

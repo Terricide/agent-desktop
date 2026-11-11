@@ -24,9 +24,9 @@ public class CommandSurfaceTests
     [
         "screenshot", "get", "is", "hover", "launch", "close-app", "focus-window",
         "resize-window", "move-window", "minimize", "maximize", "restore",
-        "open-system-surface", "list-displays", "list-surfaces", "list-notifications",
+        "open-system-surface", "list-surfaces", "list-notifications",
         "dismiss-notification", "dismiss-all-notifications", "notification-action",
-        "wait", "status", "permissions", "batch", "skills", "session",
+        "wait", "status", "batch", "skills", "session",
         "cursor-overlay", "trace",
     ];
 

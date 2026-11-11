@@ -24,8 +24,11 @@ internal static class CaptureModern
     private static readonly TimeSpan FramePollSlice = TimeSpan.FromMilliseconds(10);
 
     /// <summary>The same support predicate production capture and the availability probe use.</summary>
-    /// <remarks>SEAM: the WGC activation surface is not ported, so <c>IsSupported</c> cannot be read.</remarks>
-    internal static bool ModernIsSupported() => throw AdapterError.NotSupported("screenshot");
+    /// <remarks>The WGC activation surface is not ported, so the session reports itself unsupported.
+    /// The predicate returns false rather than refusing: the availability probe reads it to decide the
+    /// screen recording state, and a refusal there would turn an unavailable backend into an error that
+    /// fails a read-only permission report. Capture itself still refuses, because a capture needs a frame.</remarks>
+    internal static bool ModernIsSupported() => false;
 
     /// <summary>Captures one window frame, sampled at the scale the caller read for the window's monitor.</summary>
     internal static byte[] CaptureWindow(IntPtr handle, double scale, Deadline deadline)

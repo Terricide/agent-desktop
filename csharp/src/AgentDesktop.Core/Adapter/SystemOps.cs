@@ -36,4 +36,8 @@ public interface SystemOps
 
     bool ProcessOwnsTcpListener(ProcessIdentity process, ushort port, Deadline deadline) =>
         throw AdapterError.NotSupported("process_owns_tcp_listener");
+
+    /// <summary>Reads the active monitors. The enumeration is a read, so it needs no lease.</summary>
+    List<DisplayInfo> ListDisplays(Deadline deadline) =>
+        throw AdapterError.NotSupported("list_displays");
 }

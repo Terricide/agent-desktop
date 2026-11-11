@@ -47,6 +47,33 @@ public static class InventoryJson
         w.ObjectEnd();
     }
 
+    /// <summary>The displays array: id, bounds, primary, and effective scale. The array is the whole
+    /// data, the shape `list-displays` writes.</summary>
+    public static void WriteDisplays(EnvelopeWriter w, List<DisplayInfo> displays)
+    {
+        w.ArrayStart();
+        foreach (var display in displays)
+        {
+            w.Member();
+            Display(w, display);
+        }
+
+        w.ArrayEnd();
+    }
+
+    private static void Display(EnvelopeWriter w, DisplayInfo display)
+    {
+        w.ObjectStart();
+        Bounds(w, display.Bounds);
+        w.Key("id");
+        w.String(display.Id);
+        w.Key("is_primary");
+        w.Bool(display.IsPrimary);
+        w.Key("scale");
+        w.Number(display.Scale);
+        w.ObjectEnd();
+    }
+
     private static void Window(EnvelopeWriter w, WindowInfo window)
     {
         w.ObjectStart();

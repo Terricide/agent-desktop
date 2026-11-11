@@ -35,10 +35,12 @@ public static class CommandPolicy
             return AdapterError.InvalidArgs($"Invalid scroll direction '{direction}'. Use up, down, left, or right");
         }
 
-        if (command.Name == "snapshot" && command.Value("app") is null)
+        // A snapshot names the window it reads by app, or by the one window id the caller
+        // gave. With neither, the focused window owns the surface, as in Rust.
+        if (command.Name == "snapshot" && command.Value("app") is null && command.Value("window-id") is null)
         {
-            return AdapterError.InvalidArgs("snapshot needs --app <name>")
-                .WithSuggestion("Run 'list-apps' and retry with --app <name>");
+            return AdapterError.InvalidArgs("snapshot needs --app <name> or --window-id <id>")
+                .WithSuggestion("Run 'list-windows' and retry with --window-id <id>, or pass --app <name>");
         }
 
         if (command.Name == "find"

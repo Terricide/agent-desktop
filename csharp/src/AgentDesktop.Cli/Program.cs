@@ -14,6 +14,7 @@ if (outcome.Command is null)
 }
 
 var root = StateRoot.FromEnvironment(() => Environment.GetEnvironmentVariable(StateRoot.EnvironmentVariable));
+WindowsAdapter.PrepareProcess();
 var adapter = new WindowsAdapter();
 var response = Dispatch.Run(
     outcome.Command,

@@ -44,6 +44,7 @@ public static class Dispatch
                 "snapshot" => Snapshot(command, adapter, snapshots, sessions, session),
                 "find" => Find(command, adapter, snapshots, sessions, session),
                 "list-apps" => ListApps(adapter, command),
+                "list-displays" => ListDisplays(adapter),
                 "list-windows" => ListWindows(adapter, command),
                 "version" => Version(),
                 "click" => RefAction(command, adapter, snapshots, sessions, session),
@@ -71,6 +72,7 @@ public static class Dispatch
                 "mouse-click" => PointerCommand(command, "click", adapter),
                 "mouse-wheel" => PointerCommand(command, "wheel", adapter),
                 "drag" => DragCommand(command, adapter),
+                "permissions" => PermissionsCommand(command, adapter),
                 "clipboard-get" => ClipboardGet(command, adapter),
                 "clipboard-set" => ClipboardSet(command, adapter),
                 "clipboard-clear" => ClipboardClear(command, adapter),
@@ -268,6 +270,43 @@ public static class Dispatch
 
     /// <summary>`clipboard-get` reads the pasteboard. A pasteboard with no text is a normal empty result,
     /// not a refusal, so the data says the text is absent.</summary>
+    /// <summary>`permissions` reads the permission state the adapter can observe. `--request`
+    /// asks the operating system for it, which is the path that can report a denial; the plain
+    /// read never sends a request, so a state it reports as unknown stays unknown.</summary>
+    private static EnvelopeResponse PermissionsCommand(ParsedCommand command, PlatformAdapter adapter)
+    {
+        if (command.IsSet("guide"))
+        {
+            return Envelope.Err(command.Name, AdapterError.NotSupported("start_permission_guide"));
+        }
+
+        using var lease = new InteractionLease(Deadline.Standard(), InteractionPolicy.Physical);
+        var report = command.IsSet("request")
+            ? adapter.RequestPermissions(lease)
+            : adapter.PermissionReport(lease.Deadline());
+        var data = new JsonObject
+        {
+            ["accessibility"] = StateJson(report.Accessibility),
+            ["screen_recording"] = StateJson(report.ScreenRecording),
+            ["automation"] = StateJson(report.Automation),
+        };
+        return Envelope.Ok(command.Name, data);
+    }
+
+    /// <summary>A permission state is an object tagged with its state, the shape the envelope
+    /// contract uses at every permission site.</summary>
+    private static JsonNode StateJson(PermissionState state) => new JsonObject
+    {
+        ["state"] = state switch
+        {
+            PermissionState.Granted => "granted",
+            PermissionState.Denied => "denied",
+            PermissionState.NotRequired => "not_required",
+            PermissionState.Unknown => "unknown",
+            _ => "unknown",
+        },
+    };
+
     private static EnvelopeResponse ClipboardGet(ParsedCommand command, PlatformAdapter adapter)
     {
         var content = adapter.GetClipboardContent(ClipboardFormat.Text, Deadline.Standard());
@@ -325,6 +364,15 @@ public static class Dispatch
         var writer = new EnvelopeWriter();
         InventoryJson.WriteApps(writer, apps);
         return Envelope.Ok("list-apps", JsonNode.Parse(writer.Text()));
+    }
+
+    /// <summary>`list-displays` writes the active monitors. The array is the whole data, the shape
+    /// the Rust command writes, so a caller reads the same keys on both builds.</summary>
+    private static EnvelopeResponse ListDisplays(PlatformAdapter adapter)
+    {
+        var writer = new EnvelopeWriter();
+        InventoryJson.WriteDisplays(writer, adapter.ListDisplays(Deadline.Standard()));
+        return Envelope.Ok("list-displays", JsonNode.Parse(writer.Text()));
     }
 
     private static EnvelopeResponse ListWindows(PlatformAdapter adapter, ParsedCommand command)

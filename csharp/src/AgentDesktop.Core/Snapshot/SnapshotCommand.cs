@@ -35,9 +35,14 @@ public sealed class SnapshotCommand
 
     private readonly SessionStore _sessions;
 
-    public EnvelopeResponse Run(string app, string? sessionId, TreeOptions options, int maxNodes, WindowScope? scope = null)
+    public EnvelopeResponse Run(string? app, string? sessionId, TreeOptions options, int maxNodes, WindowScope? scope = null)
     {
         var deadline = Deadline.Standard();
+        if (string.IsNullOrEmpty(app))
+        {
+            return RunForWindow(sessionId, options, maxNodes, scope, deadline);
+        }
+
         var apps = _adapter.ListAppsScoped(app, null, deadline);
         if (apps.Count == 0)
         {
@@ -71,6 +76,22 @@ public sealed class SnapshotCommand
         FinalizeCaptureUniqueness(map, complete);
         _snapshots.Save(map, _sessions.Namespace(sessionId));
         return new CapturedTree(map, root, window, complete, budget);
+    }
+
+    /// <summary>A snapshot scoped to the window id the caller named. The window carries its own
+    /// app, process id, and process instance, so no app lookup is needed and the envelope reports
+    /// the app that owns the window.</summary>
+    private EnvelopeResponse RunForWindow(string? sessionId, TreeOptions options, int maxNodes, WindowScope? scope, Deadline deadline)
+    {
+        var window = _adapter.ListWindows(new WindowFilter(), deadline).FirstOrDefault(w => w.Id == scope?.WindowId);
+        if (window is null)
+        {
+            return Envelope.Err("snapshot", new AdapterError(ErrorCode.WindowNotFound, $"No window with id {scope?.WindowId}")
+                .WithSuggestion("Run 'list-windows' to see what is open").Unsent());
+        }
+
+        var scoped = CaptureWindow(window, sessionId, options, maxNodes, deadline);
+        return Envelope.Ok("snapshot", Data(window.App, scoped.Map, scoped.Root, scoped.Window, scoped.Complete, scoped.Budget));
     }
 
     /// <summary>Records whether each captured ref was uniquely identified over a complete observation.</summary>
