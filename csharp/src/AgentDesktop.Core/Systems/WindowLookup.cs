@@ -17,8 +17,7 @@ public static class WindowLookup
 
     /// <summary>The window a scope names, or the app's own window when the scope is empty.</summary>
     public static WindowInfo Select(List<WindowInfo> windows, WindowScope scope, string app)
-    {
-        var candidates = windows.Where(w => w.App == app).ToList();
+    {        var candidates = windows.Where(w => w.App == app).ToList();
         if (candidates.Count == 0)
         {
             throw new AdapterError(ErrorCode.WindowNotFound, $"No window found for app '{app}'")
@@ -87,6 +86,50 @@ public static class WindowLookup
         return (cx - x) * (cx - x) + (cy - y) * (cy - y);
     }
 
+    /// <summary>The window one surface reads, from the windows the platform listed for it. One
+    /// candidate is the answer. Several are narrowed by visibility, then by the first focused
+    /// window, then by accessibility; a tie is refused with the candidates, so the caller can
+    /// retry with an explicit id.</summary>
+    public static WindowInfo SelectWindow(List<WindowInfo> candidates, AdapterError empty, string ambiguousMessage)
+    {
+        if (candidates.Count == 0)
+        {
+            throw empty.Unsent();
+        }
+
+        if (candidates.Count == 1)
+        {
+            return candidates[0];
+        }
+
+        var list = candidates;
+        if (list.Any(w => w.State.Visible == true))
+        {
+            list = list.Where(w => w.State.Visible == true).ToList();
+            if (list.Count == 1)
+            {
+                return list[0];
+            }
+        }
+
+        var focused = list.FindIndex(w => w.State.IsFocused);
+        if (focused >= 0 && !list.Skip(focused + 1).Any(w => w.State.IsFocused))
+        {
+            return list[focused];
+        }
+
+        if (list.Any(w => w.State.Accessible))
+        {
+            list = list.Where(w => w.State.Accessible).ToList();
+            if (list.Count == 1)
+            {
+                return list[0];
+            }
+        }
+
+        throw Ambiguous(list, ambiguousMessage);
+    }
+
     private static WindowInfo SelectOwned(List<WindowInfo> candidates, string app)
     {
         if (candidates.Count == 1)
@@ -116,10 +159,12 @@ public static class WindowLookup
             return accessible[0];
         }
 
-        throw Ambiguous(candidates, app);
+        throw Ambiguous(candidates, $"Multiple windows match app '{app}'");
     }
 
-    private static AdapterError Ambiguous(List<WindowInfo> candidates, string app)
+    /// <summary>The refusal for a tie: the message says what was matched, and the details carry
+    /// the candidates so the caller can pick an id.</summary>
+    private static AdapterError Ambiguous(List<WindowInfo> candidates, string message)
     {
         var shown = Math.Min(candidates.Count, 10);
         var summaries = new EnvelopeWriter();
@@ -143,8 +188,7 @@ public static class WindowLookup
         summaries.ArrayEnd();
 
         return new AdapterError(
-            ErrorCode.AmbiguousTarget,
-            $"Multiple windows match app '{app}'")
+            ErrorCode.AmbiguousTarget, message)
             .WithSuggestion("Run 'list-windows' and retry with --window-id <id>.")
             .WithDetails(new DetailsBuilder()
                 .Add("candidate_count", candidates.Count)

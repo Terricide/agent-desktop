@@ -38,20 +38,49 @@ public sealed class SnapshotCommand
     public EnvelopeResponse Run(string? app, string? sessionId, TreeOptions options, int maxNodes, WindowScope? scope = null)
     {
         var deadline = Deadline.Standard();
-        if (string.IsNullOrEmpty(app))
-        {
-            return RunForWindow(sessionId, options, maxNodes, scope, deadline);
-        }
-
-        var apps = _adapter.ListAppsScoped(app, null, deadline);
-        if (apps.Count == 0)
-        {
-            return Envelope.Err("snapshot", new AdapterError(ErrorCode.AppNotFound, $"Application '{app}' is not running").Unsent());
-        }
-
-        var captured = Capture(apps[0], sessionId, options, maxNodes, scope ?? new WindowScope(), deadline);
-        return Envelope.Ok("snapshot", Data(apps[0].Name, captured.Map, captured.Root, captured.Window, captured.Complete, captured.Budget));
+        var window = ResolveSurface(string.IsNullOrEmpty(app) ? null : app, scope?.WindowId, deadline);
+        var captured = CaptureWindow(window, sessionId, options, maxNodes, deadline);
+        return Envelope.Ok("snapshot", Data(window.App, captured.Map, captured.Root, captured.Window, captured.Complete, captured.Budget));
     }
+
+    /// <summary>The window the snapshot reads: the window id the caller named, a named app's
+    /// window, or the window the desktop reports as focused. The window carries its own app, pid,
+    /// and process instance, so the envelope reports the app that owns the window.</summary>
+    private WindowInfo ResolveSurface(string? app, string? windowId, Deadline deadline)
+    {
+        var windows = _adapter.ListWindows(new WindowFilter
+        {
+            FocusedOnly = app is null && windowId is null,
+            App = app,
+        }, deadline);
+
+        if (windowId is not null)
+        {
+            var match = windows.FirstOrDefault(w => w.Id == windowId);
+            if (match is null)
+            {
+                throw new AdapterError(ErrorCode.WindowNotFound, $"No window with id {windowId}")
+                    .WithSuggestion("Run 'list-windows' to see available window IDs.").Unsent();
+            }
+
+            return match;
+        }
+
+        if (windows.Count == 0 && app is not null)
+        {
+            throw (IsRunning(app) ? AdapterError.AppHasNoWindow(app) : ExactIdentityNotFound(app)).Unsent();
+        }
+
+        return WindowLookup.SelectWindow(windows, NoWindowFor(app), "More than one window matches the target");
+    }
+
+    private static AdapterError ExactIdentityNotFound(string app) =>
+        new AdapterError(ErrorCode.AppNotFound, $"Application '{app}' was not found with exact process identity")
+            .WithSuggestion("Application name as reported by list-apps");
+
+    private static AdapterError NoWindowFor(string? app) => app is not null
+        ? AdapterError.AppHasNoWindow(app)
+        : new AdapterError(ErrorCode.WindowNotFound, "No focused window found");
 
     /// <summary>One observation, ref-allocated and persisted, without an envelope. `find` runs
     /// the same capture so the refs it publishes are proven by the one observation it took, and
@@ -78,21 +107,9 @@ public sealed class SnapshotCommand
         return new CapturedTree(map, root, window, complete, budget);
     }
 
-    /// <summary>A snapshot scoped to the window id the caller named. The window carries its own
-    /// app, process id, and process instance, so no app lookup is needed and the envelope reports
-    /// the app that owns the window.</summary>
-    private EnvelopeResponse RunForWindow(string? sessionId, TreeOptions options, int maxNodes, WindowScope? scope, Deadline deadline)
-    {
-        var window = _adapter.ListWindows(new WindowFilter(), deadline).FirstOrDefault(w => w.Id == scope?.WindowId);
-        if (window is null)
-        {
-            return Envelope.Err("snapshot", new AdapterError(ErrorCode.WindowNotFound, $"No window with id {scope?.WindowId}")
-                .WithSuggestion("Run 'list-windows' to see what is open").Unsent());
-        }
-
-        var scoped = CaptureWindow(window, sessionId, options, maxNodes, deadline);
-        return Envelope.Ok("snapshot", Data(window.App, scoped.Map, scoped.Root, scoped.Window, scoped.Complete, scoped.Budget));
-    }
+    /// <summary>Whether the process inventory names the app, so the app is running and its window
+    /// has not appeared yet.</summary>
+    private bool IsRunning(string app) => _adapter.ListAppsScoped(app, null, Deadline.Standard()).Count > 0;
 
     /// <summary>Records whether each captured ref was uniquely identified over a complete observation.</summary>
     private static void FinalizeCaptureUniqueness(RefMap map, bool complete)
@@ -223,7 +240,8 @@ public sealed class SnapshotCommand
     private static string Qualified(string bare, string snapshotId) => "@" + snapshotId + ":" + bare;
 
     /// <summary>A child `--compact` collapses: one that carries no ref and has a single
-    /// child, so the child says what the parent says.</summary>
+    /// child, so the child says what the parent says. A native automation id, a name, a state, or
+    /// an advertised action is a descriptor the collapse would lose, so it guards the node.</summary>
     private static bool IsCollapsible(AccessibilityNode child, TreeOptions options) =>
         options.Compact
         && child.Role == "group"
