@@ -63,10 +63,8 @@ internal static class ResolveDescent
     {
         var limit = take is { } wanted ? Math.Min(wanted, budget.MaxSiblings) : budget.MaxSiblings;
         var enumerated = new List<TNode>();
-        var hresult = source.Children(element, false, enumerated);
-        if (hresult < 0)
+        if (TreeSourceChildren.Collect(source, element, enumerated).Fault is { } failure)
         {
-            var failure = AutomationClassify.Failure.Hresult(hresult);
             if (policy.Classify(failure) == DescentVerdict.Surfaced)
             {
                 DisposeFrom(enumerated, 0);

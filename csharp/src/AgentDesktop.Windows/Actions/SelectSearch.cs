@@ -185,11 +185,9 @@ internal static class SelectSearch
     {
         deadline.EnsureRemaining();
         var children = new List<Element>();
-        var hr = source.Children(parent, false, children);
-        if (hr < 0)
+        if (TreeSourceChildren.Collect(source, parent, children).Fault is { } failure)
         {
-            throw AutomationClassify.UiaFailureError(AutomationClassify.Failure.Hresult(hr),
-                "enumerate children for select");
+            throw AutomationClassify.UiaFailureError(failure, "enumerate children for select");
         }
 
         for (var index = children.Count - 1; index >= 0; index--)

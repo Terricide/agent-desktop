@@ -58,17 +58,16 @@ internal sealed class Walk<TNode> where TNode : class, IDisposable
 
         var childLogicalDepth = webWrapper ? logicalDepth : logicalDepth + 1;
         var boundaryCandidate = rawDepth >= _budget.MaxRawDepth || childLogicalDepth > _budget.MaxLogicalDepth;
-        var kids = new List<TNode>();
-        if (_source.Children(node, boundaryCandidate, kids) < 0)
+        var (kids, enumerationComplete) = ReadChildren(node);
+        var truncatedByRawDepth = rawDepth >= _budget.MaxRawDepth && kids.Count > 0;
+        var atBoundary = truncatedByRawDepth || childLogicalDepth > _budget.MaxLogicalDepth;
+        if (!enumerationComplete && !atBoundary)
         {
-            _stats.Reads.NativeReadFailures += 1;
             _truncated = true;
             DisposeAll(kids);
             return NodeBuilder.Build(properties, label, children, null, true);
         }
 
-        var truncatedByRawDepth = rawDepth >= _budget.MaxRawDepth && kids.Count > 0;
-        var atBoundary = truncatedByRawDepth || childLogicalDepth > _budget.MaxLogicalDepth;
         if (atBoundary)
         {
             if (truncatedByRawDepth)
@@ -81,7 +80,7 @@ internal sealed class Walk<TNode> where TNode : class, IDisposable
                 _stats.Traversal.DepthHits += 1;
             }
 
-            uint? boundaryCount = kids.Count > 0 ? (uint)kids.Count : null;
+            uint? boundaryCount = enumerationComplete && kids.Count > 0 ? (uint)kids.Count : null;
             DisposeAll(kids);
             return NodeBuilder.Build(properties, label, children, boundaryCount, truncatedByRawDepth);
         }
@@ -104,6 +103,58 @@ internal sealed class Walk<TNode> where TNode : class, IDisposable
         }
 
         return NodeBuilder.Build(properties, label, children, null, cut);
+    }
+
+    /// <summary>Walks the sibling list one walker step at a time. A single path that retires end-of-siblings and
+    /// a cross-process fault through the same arm turns a hung target into a truncated tree that reports complete,
+    /// so every failure is classified: exhaustion ends the list and leaves the subtree complete, anything else
+    /// marks it incomplete. A boundary node's children are counted by the same walk that a full node's are, so a
+    /// count is the number of children the walk saw, not the number a control-view query returned.</summary>
+    private (List<TNode> Kids, bool Complete) ReadChildren(TNode node)
+    {
+        var kids = new List<TNode>();
+        var (first, firstFailure) = _source.FirstChild(node);
+        if (first is null)
+        {
+            if (firstFailure is { } failure && !failure.IsExhaustion)
+            {
+                _stats.Reads.NativeReadFailures += 1;
+                return (kids, false);
+            }
+
+            return (kids, true);
+        }
+
+        var current = first;
+        while (true)
+        {
+            if (kids.Count >= _budget.MaxSiblings)
+            {
+                _stats.Traversal.ChildHits += 1;
+                _truncated = true;
+                current.Dispose();
+                return (kids, false);
+            }
+
+            var (sibling, siblingFailure) = _source.NextSibling(current);
+            kids.Add(current);
+            if (sibling is not null)
+            {
+                current = sibling;
+                continue;
+            }
+
+            if (siblingFailure is null || siblingFailure.Value.IsExhaustion)
+            {
+                break;
+            }
+
+            _stats.Reads.NativeReadFailures += 1;
+            _truncated = true;
+            return (kids, false);
+        }
+
+        return (kids, true);
     }
 
     private static void DisposeAll(List<TNode> nodes)

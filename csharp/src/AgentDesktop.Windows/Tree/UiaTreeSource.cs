@@ -76,6 +76,8 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
 
     private IntPtr _request;
 
+    private IntPtr _walker;
+
     private bool _chromiumProvenance;
 
     private UiaTreeSource(bool includeBounds, bool cached)
@@ -137,6 +139,14 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         }
 
         _condition = condition;
+        var walkerHr = client.RawViewWalker(out var walker);
+        if (walkerHr < 0 || walker == IntPtr.Zero)
+        {
+            Calls.Release(walker);
+            throw UiaFailure.Error(walkerHr, "create the raw view walker");
+        }
+
+        _walker = walker;
         if (_cached)
         {
             BuildCacheRequest(client);
@@ -243,33 +253,55 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         return NameEvidenceFactory.LabelFromTarget(secure, name.Kind == LocatorFieldKind.Known ? name.Value : null);
     }
 
-    /// <summary>A count-only read, or any read from a source that does not batch, uses a plain FindAll, so children
-    /// that are only counted do not pay for a read set nobody looks at, and a live source never asks for a cache it
-    /// did not build.</summary>
-    public int Children(Element node, bool countOnly, List<Element> into)
+    /// <summary>Descends one level through the raw view. A node whose only children are content-view elements -
+    /// a glyph carried by a `statictext` under a button, which is what Notepad's toolbar and status bar are made of -
+    /// has no children in the control view, and a control-view count reports an empty subtree for a node that has
+    /// children. The raw view walker is the surface that sees them, the same one the Rust adapter walks.
+    /// A batching source builds the read set onto each element the walker hands out, so the walk's per-node read
+    /// set rides the cache as it did under FindAllBuildCache.</summary>
+    public (Element? Node, AutomationClassify.Failure? Failure) FirstChild(Element node) =>
+        Step(node, Slots.WalkerGetFirstChild);
+
+    public (Element? Node, AutomationClassify.Failure? Failure) NextSibling(Element node) =>
+        Step(node, Slots.WalkerGetNextSibling);
+
+    private (Element? Node, AutomationClassify.Failure? Failure) Step(Element node, int slot)
     {
         if (node.Pointer == IntPtr.Zero)
         {
-            return InvalidPointer;
+            return (null, AutomationClassify.Failure.Hresult(InvalidPointer));
         }
 
-        var hr = countOnly || !_cached
-            ? Calls.CallOutPointerWithIntAndPointer(node.Pointer, Slots.ElementFindAll, Slots.TreeScopeChildren, _condition, out var found)
-            : Calls.FindAllBuildCache(node.Pointer, Slots.TreeScopeChildren, _condition, _request, out found);
-        if (hr < 0 || found == IntPtr.Zero)
+        var hr = Calls.CallOutPointerWithArg(_walker, slot, node.Pointer, out var child);
+        if (child != IntPtr.Zero)
         {
-            Calls.Release(found);
-            return hr;
+            var element = new Element(child);
+            return _cached ? CacheOnto(element) : (element, null);
         }
 
-        try
+        Calls.Release(child);
+        if (hr >= 0 || hr == UiaFailure.ElementNotAvailable)
         {
-            return AppendElements(found, into);
+            return (null, AutomationClassify.Failure.Sentinel(AutomationClassify.ErrNone));
         }
-        finally
+
+        return (null, AutomationClassify.Failure.Hresult(hr));
+    }
+
+    /// <summary>Fetches the walk's read set onto a walker element, so its properties cost no round trip. A cache
+    /// read that fails keeps the walker element: its properties then read live, which is the slower path, not a
+    /// lost node.</summary>
+    private (Element? Node, AutomationClassify.Failure? Failure) CacheOnto(Element node)
+    {
+        var hr = Calls.CallOutPointerWithArg(node.Pointer, Slots.ElementBuildUpdatedCache, _request, out var updated);
+        if (hr < 0 || updated == IntPtr.Zero)
         {
-            Calls.Release(found);
+            Calls.Release(updated);
+            return (node, null);
         }
+
+        node.Dispose();
+        return (new Element(updated), null);
     }
 
     public bool IsWebWrapper(ElementProperties properties) => _chromiumProvenance && WebWrapper.Matches(properties);
@@ -278,8 +310,10 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
     {
         Calls.Release(_request);
         Calls.Release(_condition);
+        Calls.Release(_walker);
         _request = IntPtr.Zero;
         _condition = IntPtr.Zero;
+        _walker = IntPtr.Zero;
     }
 
     private static bool IsChromiumClass(LocatorField<string> className) =>

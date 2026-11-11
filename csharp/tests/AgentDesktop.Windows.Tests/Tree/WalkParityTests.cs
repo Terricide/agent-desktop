@@ -8,13 +8,18 @@ using Xunit;
 namespace AgentDesktop.Windows.Tests;
 
 /// <summary>A stub UIA node with deterministic properties and children so Walk and NodeBuilder
-/// can be verified without a desktop session.</summary>
+/// can be verified without a desktop session. Each node knows its parent, so the sibling list the
+/// walk enumerates is the list the tree was built with.</summary>
 internal sealed class StubNode : IDisposable
 {
     internal StubNode(ElementProperties properties, params StubNode[] children)
     {
         Properties = properties;
         Children = children.ToList();
+        foreach (var child in Children)
+        {
+            child.Parent = this;
+        }
     }
 
     internal ElementProperties Properties { get; }
@@ -23,23 +28,37 @@ internal sealed class StubNode : IDisposable
 
     internal List<StubNode> Children { get; }
 
+    internal StubNode? Parent { get; private set; }
+
     internal bool Disposed { get; private set; }
 
     public void Dispose() => Disposed = true;
 }
 
-/// <summary>Stub TreeSource that hands out StubNodes and reports their web-wrapper status.</summary>
+/// <summary>Stub TreeSource that hands out StubNodes and reports their web-wrapper status. The walker steps are
+/// the tree's own links, so a walk over the stub runs the same enumeration loop the live source runs.</summary>
 internal sealed class StubTreeSource : TreeSource<StubNode>
 {
     public ElementProperties Read(StubNode node) => node.Properties;
 
     public LabelOutcome ReadLabel(StubNode node) => node.Label;
 
-    public int Children(StubNode node, bool countOnly, List<StubNode> into)
+    public (StubNode? Node, AutomationClassify.Failure? Failure) FirstChild(StubNode node) =>
+        node.Children.Count > 0 ? (node.Children[0], null) : EndOfList;
+
+    public (StubNode? Node, AutomationClassify.Failure? Failure) NextSibling(StubNode node)
     {
-        into.AddRange(node.Children);
-        return 0;
+        if (node.Parent is null)
+        {
+            return EndOfList;
+        }
+
+        var index = node.Parent.Children.IndexOf(node);
+        return index + 1 < node.Parent.Children.Count ? (node.Parent.Children[index + 1], null) : EndOfList;
     }
+
+    private static (StubNode? Node, AutomationClassify.Failure? Failure) EndOfList =>
+        (null, AutomationClassify.Failure.Sentinel(AutomationClassify.ErrNone));
 
     public bool IsWebWrapper(ElementProperties properties) =>
         properties.Text(TreeProperty.ClassName) == "Chrome_RenderWidgetHostHWND";

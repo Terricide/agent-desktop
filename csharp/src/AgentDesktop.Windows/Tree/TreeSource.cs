@@ -13,10 +13,14 @@ internal interface TreeSource<TNode> where TNode : class, IDisposable
     /// hands back a target whose cached reads fail for the properties the same request asked for (A15-3).</summary>
     LabelOutcome ReadLabel(TNode node);
 
-    /// <summary>Appends the node's children and returns the HRESULT. A failure keeps the
-    /// children appended before it. A count-only read is for a boundary node, whose children
-    /// are counted and released but never read.</summary>
-    int Children(TNode node, bool countOnly, List<TNode> into);
+    /// <summary>Descends one level. A null node with an exhaustion failure means the node has no
+    /// children; a null node with any other failure means the child could not be read, which the
+    /// walk must not read as an empty subtree. Mirrors `first_child`.</summary>
+    (TNode? Node, AutomationClassify.Failure? Failure) FirstChild(TNode node);
+
+    /// <summary>Advances along a sibling list. A null node with an exhaustion failure ends the
+    /// list; any other failure is a genuine fault. Mirrors `next_sibling`.</summary>
+    (TNode? Node, AutomationClassify.Failure? Failure) NextSibling(TNode node);
 
     bool IsWebWrapper(ElementProperties properties);
 }

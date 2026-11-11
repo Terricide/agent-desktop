@@ -177,7 +177,7 @@ internal static class ElementResolve
         var matchedSelf = wanted.MatchesCapture(candidate);
 
         var children = new List<Element>();
-        if (source.Children(element, false, children) >= 0)
+        if (TreeSourceChildren.Collect(source, element, children).Fault is null)
         {
             foreach (var child in children)
             {
