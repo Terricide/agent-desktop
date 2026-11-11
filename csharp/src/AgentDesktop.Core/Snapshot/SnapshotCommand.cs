@@ -96,16 +96,17 @@ public sealed class SnapshotCommand
     public CapturedTree CaptureWindow(WindowInfo window, string? sessionId, TreeOptions options, int maxNodes, Deadline deadline)
     {
         var budget = new SnapshotBudget(Math.Min(maxNodes, MaxObservationNodes));
+        var effective = WithSkeletonDepth(options);
         var observed = _adapter.ObserveTree(
             new ObservationRoot.Window(window),
-            new ObservationRequest(options.WithRefIdentityBounds(), deadline));
+            new ObservationRequest(effective.WithRefIdentityBounds(), deadline));
         var map = new RefMap(SnapshotId.New());
         var census = new CaptureCensus(observed.Root, observed.Complete);
         var context = new AllocationContext(
             window,
             map,
             budget,
-            options,
+            effective,
             census,
             SkeletonAnchors.Plan(observed.Root, census),
             observed.Complete);
@@ -199,6 +200,14 @@ public sealed class SnapshotCommand
         return data;
     }
 
+    /// <summary>A skeleton is an overview, so it never presents more than three levels. The
+    /// depth the walk is given is the caller's depth capped at that ceiling, which is what makes
+    /// a skeleton a shallow sweep rather than a filtered full tree.</summary>
+    private const byte SkeletonDepthCeiling = 3;
+
+    private static TreeOptions WithSkeletonDepth(TreeOptions options) =>
+        options.Skeleton ? options with { MaxDepth = (byte)Math.Min(options.MaxDepth, SkeletonDepthCeiling) } : options;
+
     /// <summary>What the walk needs to allocate refs: the window, the map being built, the budget,
     /// the options, the one whole-window observation counted for proof, the frames the walk
     /// planned from it, and whether the read covered the whole window.</summary>
@@ -261,21 +270,12 @@ public sealed class SnapshotCommand
         };
     }
 
-    /// <summary>A node gets a ref when its role qualifies, and a frame the capture planned covers
-    /// it; a node whose role qualifies is given a ref only when its subtree is not covered by a
-    /// frame the capture proved unique, since resolution reaches that subtree through the frame.
-    /// A skeleton anchor is the node that carries the evidence, keyed by its parent's frame, so
-    /// the frame resolution walks through to reach the rest is the one it can resolve.
-    ///
-    /// The skeleton-anchor case keeps the frame for a node that carries a native identifier, a
-    /// stable name, or a description, because that node carries identity, so a boundary above it
-    /// cannot prove its whole subtree. A node that carries no evidence cannot be a skeleton
-    /// anchor, and every ancestor of a node that carries evidence is offered as the frame that
-    /// resolution reaches the rest through.</summary>
+    /// <summary>A node gets a ref when its role qualifies, and a skeleton anchor gets one because
+    /// it is the node resolution walks through to reach the subtree the capture cannot prove. The
+    /// census does not decide eligibility: it records on the entry whether the capture proved the
+    /// node unique, which is what a ref action refuses when the proof is not unique.</summary>
     private static bool QualifiesForRef(AccessibilityNode node, List<int> path, AllocationContext context) =>
-        InteractiveRoles.QualifiesForRef(node)
-            ? path.Count == 0 || node.ChildrenCount is not null || !context.Census.Proves(node)
-            : context.Anchors.Contains(PathKey(path));
+        InteractiveRoles.QualifiesForRef(node) || context.Anchors.Contains(PathKey(path));
 
     private static string PathKey(List<int> path) => string.Join('.', path);
 

@@ -121,19 +121,25 @@ public class SnapshotSliceTests
         Assert.True(File.Exists(System.IO.Path.Combine(root.Snapshots, "default", persisted, "refmap.json")));
     }
 
-    /// <summary>An element the capture proved unique over the whole window carries its own proof,
-    /// so it is not given a ref: resolution finds it by walking from the frame above it.</summary>
+    /// <summary>A ref-able leaf is given a ref, and the capture proof records that the window
+    /// proved it unique. The census does not suppress the ref: a ref action is what refuses a
+    /// proof that is not unique, so the entry carries the proof, not the tree.</summary>
     [Fact]
-    public void AProvenUniqueLeafIsNotGivenARef()
+    public void AProvenUniqueLeafIsGivenARefAndCarriesItsProof()
     {
         var leaf = Node("button", "Run", new List<AccessibilityNode>(), ["Press"]);
         var tree = Frame("group", "Notes", new List<AccessibilityNode> { leaf }, []);
-        var (snapshot, _, _, _) = Slice(tree);
+        var (snapshot, _, root, _) = Slice(tree);
 
-        var json = snapshot.Run("Notes", null, TreeOptions.Default(), 100).ToJsonString();
+        var response = snapshot.Run("Notes", null, TreeOptions.Default(), 100);
+        var json = response.ToJsonString();
+        var persisted = SnapshotIdOf(response);
+        var refmap = File.ReadAllText(System.IO.Path.Combine(root.Snapshots, "default", persisted, "refmap.json"));
 
-        Assert.Contains("\"ref_count\":0", json);
-        Assert.DoesNotContain("\"ref_id\"", json);
+        Assert.Contains("\"ref_count\":1", json);
+        Assert.Contains("\"ref_id\":\"@" + persisted + ":e1\"", json);
+        Assert.Contains("\"UniqueAtCapture\":true", refmap);
+        Assert.Contains("\"UniquenessReason\":null", refmap);
     }
 
     /// <summary>A frame the capture proved unique is given a ref, because it is the boundary
