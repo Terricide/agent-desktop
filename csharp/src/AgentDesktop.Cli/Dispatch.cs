@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using AgentDesktop.Core.Commands;
 using AgentDesktop.Core.Actions;
 using AgentDesktop.Core.Adapter;
 using AgentDesktop.Core.Context;
@@ -46,6 +47,7 @@ public static class Dispatch
                 "list-apps" => ListApps(adapter, command),
                 "list-displays" => ListDisplays(adapter),
                 "list-windows" => ListWindows(adapter, command),
+                "get" => RunGet(adapter, snapshots, sessions, session, command),
                 "version" => Version(),
                 "click" => RefAction(command, adapter, snapshots, sessions, session),
                 "double-click" => RefAction(command, adapter, snapshots, sessions, session),
@@ -142,6 +144,22 @@ public static class Dispatch
 
         return new SnapshotCommand(adapter, snapshots, sessions)
             .Run(command.Value("app")!, session, options, SnapshotCommand.MaxObservationNodes, scope, command.Integer("timeout-ms"));
+    }
+
+    /// <summary>`get` reads one property of a captured ref. The ref is the first positional, so
+    /// the same strict resolution every ref action uses applies, and the property selects which
+    /// projection of the live read answers.</summary>
+    private static EnvelopeResponse RunGet(PlatformAdapter adapter, SnapshotStore snapshots,
+        SessionStore sessions, string? session, ParsedCommand command)
+    {
+        if (command.Ref is null)
+        {
+            return Envelope.Err(command.Name, AdapterError.InvalidArgs(
+                "get needs a snapshot-qualified ref: get @<snapshot_id>:eN --property text"));
+        }
+
+        return new GetCommand(adapter, snapshots, sessions)
+            .Run(command.Name, command.Ref, command.Value("property") ?? "text", session);
     }
 
     private static EnvelopeResponse RefAction(ParsedCommand command, PlatformAdapter adapter, SnapshotStore snapshots, SessionStore sessions, string? session)

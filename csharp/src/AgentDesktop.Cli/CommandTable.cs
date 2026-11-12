@@ -45,7 +45,9 @@ public static class CommandTable
     };
 
     /// <summary>Whether a command changes application state. A mutating command under a
-    /// multi-agent lease needs the agent identified.</summary>
+    /// multi-agent lease needs the agent identified. Reading a surface, including a ref's live
+    /// property, changes nothing.</summary>
     public static bool IsMutating(string name) =>
-        Names.Contains(name) && PolicyFor(name) == PermissionNeed.Accessibility && name != "snapshot";
+        Names.Contains(name) && PolicyFor(name) == PermissionNeed.Accessibility
+        && name != "snapshot" && name != "get" && name != "is";
 }
