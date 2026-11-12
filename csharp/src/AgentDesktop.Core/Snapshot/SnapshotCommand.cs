@@ -365,7 +365,8 @@ public sealed class SnapshotCommand
                 SourceWindowTitle = NullIfEmpty(window.Title),
                 SourceApp = NullIfEmpty(window.App),
             },
-            Scope = new RefScope { WindowId = window.Id, CompleteObservation = context.Complete },
+            Scope = new RefScope { WindowId = window.Id, CompleteObservation = context.Complete,
+                Path = new List<int>(path) },
             UniquenessReason = uniqueAtCapture
                 ? null
                 : "capture did not prove a unique whole-window match",

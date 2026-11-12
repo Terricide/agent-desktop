@@ -277,6 +277,31 @@ public class SnapshotSliceTests
         Assert.Contains("\"code\":\"AMBIGUOUS_TARGET\"", resolved.ToJsonString());
     }
 
+    /// <summary>A ref records the child indexes that lead from the window root to the element it
+    /// names, so a locator anchor can descend the stored path. A refmap whose entries carry no path
+    /// makes every anchor land on the window root, so the ref resolves to the wrong element.</summary>
+    [Fact]
+    public void ARefRecordsTheChildIndexesFromTheWindowRoot()
+    {
+        var deep = Node("button", "Send", new List<AccessibilityNode>(), ["Press"]);
+        var row = Frame("group", "Row", new List<AccessibilityNode> {
+            Node("button", "One", new List<AccessibilityNode>(), ["Press"]),
+            Node("button", "Two", new List<AccessibilityNode>(), ["Press"]),
+            deep }, []);
+        var toolbar = Frame("group", "Toolbar", new List<AccessibilityNode> {
+            Frame("group", "Leading", new List<AccessibilityNode>(), []),
+            row }, []);
+        var tree = Frame("window", "Notes", new List<AccessibilityNode> {
+            Frame("group", "Side", new List<AccessibilityNode>(), []),
+            toolbar }, []);
+        var (snapshot, _, root, _) = Slice(tree);
+
+        var persisted = SnapshotIdOf(snapshot.Run("Notes", null, TreeOptions.Default(), 100));
+        var refmap = File.ReadAllText(System.IO.Path.Combine(root.Snapshots, "default", persisted, "refmap.json"));
+
+        Assert.Contains("\"Path\":[1,1,2]", refmap);
+    }
+
     [Fact]
     public void NativeAutomationIdSerializesAsTaggedObjectAndDescriptorsGuardCompactCollapse()
     {

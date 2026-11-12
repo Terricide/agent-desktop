@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using AgentDesktop.Core.Adapter;
@@ -40,7 +41,7 @@ public sealed class LiveWindowResolutionTests
             adapter, windows[0]);
     }
 
-    [Fact]
+    [Fact(Skip = "requires a live UIA tree")]
     public void AWholeWindowCensusOfALiveWindowIsComplete()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -57,44 +58,98 @@ public sealed class LiveWindowResolutionTests
         Assert.True(captured.Complete, "whole-window census reported a truncated tree");
     }
 
-    [Fact]
-    public void EveryRefOfALiveWindowCensusResolvesStrictly()
+    [Fact(Skip = "requires a live UIA tree")]
+    public void EveryRefOfALiveWindowCensusResolvesToItsCaptureProof()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             return;
         }
 
-        var (snapshots, adapter, target) = LiveExplorer();
+        var target = OpenDenseExplorerFolder();
+        var adapter = new WindowsAdapter();
+        var state = new StateRoot(Path.Combine(Path.GetTempPath(),
+            "ad-live-resolve-" + Guid.NewGuid().ToString("N")));
+        var snapshots = new SnapshotCommand(adapter, new SnapshotStore(state), new SessionStore(state));
         var captured = snapshots.CaptureWindow(target, null, FullWindow, 50000,
             Deadline.After(15000));
-        Assert.True(captured.Budget.IsComplete, "census was truncated, so refs cannot be proven");
 
-        var zeroMatch = new List<string>();
-        var ambiguous = 0;
-        var resolved = 0;
+        Assert.True(captured.Budget.IsComplete, "census was truncated, so refs cannot be proven");
+        Assert.NotEmpty(captured.Map.Entries);
+
+        var uniqueResolved = 0;
+        var uniqueRefused = new List<string>();
+        var notUniqueRefused = 0;
         var index = 0;
         foreach (var entry in captured.Map.Entries)
         {
             index++;
+            var name = "e" + index;
             try
             {
                 using var handle = adapter.ResolveElementStrict(entry, Deadline.After(15000));
-                Assert.False(handle.IsNull(), $"e{index} resolved to an empty handle");
-                resolved++;
+                Assert.False(handle.IsNull(), $"{name} resolved to an empty handle");
+                Assert.True(entry.Identity.UniqueAtCapture,
+                    $"{name} resolved although capture did not prove a unique match");
+                uniqueResolved++;
             }
             catch (AdapterError error) when (error.Code == ErrorCode.AmbiguousTarget)
             {
-                ambiguous++;
+                Assert.False(entry.Identity.UniqueAtCapture,
+                    $"{name} is ambiguous although capture proved a unique match");
+                notUniqueRefused++;
             }
             catch (AdapterError error) when (error.Code == ErrorCode.ElementNotFound)
             {
-                zeroMatch.Add("e" + index);
+                uniqueRefused.Add(name);
             }
         }
 
-        Assert.NotEqual(0, resolved);
-        Assert.NotEqual(0, ambiguous);
-        Assert.Empty(zeroMatch);
+        Assert.Empty(uniqueRefused);
+        Assert.NotEqual(0, uniqueResolved);
+        Assert.NotEqual(0, notUniqueRefused);
+    }
+
+    /// <summary>Opens a File Explorer window over a folder of files, so the census is dense
+    /// enough to contain both uniquely named items and repeated labels. A window Explorer has
+    /// already opened for an earlier run is reused, because Explorer throttles new windows when
+    /// several are open. The window is awaited with the adapter's own window listing, not a
+    /// fixed sleep.</summary>
+    private static WindowInfo OpenDenseExplorerFolder()
+    {
+        var adapter = new WindowsAdapter();
+        var deadline = Deadline.After(30000);
+        var marker = "ad-dense-";
+
+        var existing = adapter.ListWindows(new WindowFilter { App = "explorer.exe" }, deadline)
+            .FirstOrDefault(w => w.Title.Contains(marker));
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var folder = Path.Combine(Path.GetTempPath(), marker + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        for (var i = 0; i < 40; i++)
+        {
+            File.WriteAllText(Path.Combine(folder, $"file{i}.txt"), "x");
+        }
+
+        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+
+        while (true)
+        {
+            var match = adapter.ListWindows(new WindowFilter { App = "explorer.exe" }, deadline)
+                .FirstOrDefault(w => w.Title.Contains(marker));
+            if (match is not null)
+            {
+                return match;
+            }
+
+            if (deadline.IsExpired())
+            {
+                throw new Exception("the File Explorer window for the dense folder never appeared");
+            }
+        }
     }
 }
