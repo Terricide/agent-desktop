@@ -209,15 +209,19 @@ internal sealed class Element : IDisposable
     /// <summary>Resolves this element's `LabeledBy` relation. The caller must release a non-zero
     /// target pointer. A relation the provider does not publish returns zero, which is the
     /// ordinary case on a Win32 fixture, not a failure.</summary>
-    internal IntPtr LabeledByTarget(bool cached)
+    /// <summary>Reads this element's `LabeledBy` target. The two zero cases are distinct: a read
+    /// that errored is a failed relation, while a read that answered with no element means the
+    /// node is simply unlabelled. Collapsing them makes an unlabelled node look like a failed
+    /// read, which clouds its name slot and blocks every proof that needs the name.</summary>
+    internal (IntPtr Target, bool ReadFailed) LabeledByTarget(bool cached)
     {
         if (_pointer == IntPtr.Zero)
         {
-            return IntPtr.Zero;
+            return (IntPtr.Zero, true);
         }
 
         var slot = cached ? Slots.ElementGetCachedLabeledBy : Slots.ElementGetCurrentLabeledBy;
-        return Calls.CallOutPointer(_pointer, slot, out var target) < 0 ? IntPtr.Zero : target;
+        return Calls.CallOutPointer(_pointer, slot, out var target) < 0 ? (IntPtr.Zero, true) : (target, false);
     }
 
     /// <summary>Calls IUIAutomationElement::SetFocus on this element.</summary>

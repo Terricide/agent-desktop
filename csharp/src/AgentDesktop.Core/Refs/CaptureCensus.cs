@@ -18,6 +18,7 @@ namespace AgentDesktop.Core.Refs;
 /// </summary>
 internal sealed class CaptureCensus
 {
+    private readonly AccessibilityNode _root;
     private readonly bool _wholeWindow;
     private readonly List<AccessibilityNode> _nodes = [];
     private readonly Dictionary<AccessibilityNode, int> _indices = new();
@@ -29,6 +30,7 @@ internal sealed class CaptureCensus
     /// unique.</summary>
     internal CaptureCensus(AccessibilityNode root, bool wholeWindow)
     {
+        _root = root;
         _wholeWindow = wholeWindow;
         Flatten(root);
         for (var index = 0; index < _nodes.Count; index++)
@@ -39,6 +41,75 @@ internal sealed class CaptureCensus
                 _unread.Add((bits, _nodes[index]));
             }
         }
+    }
+
+    /// <summary>Whether the node at the allocation path is proven unique. The path is read the way
+    /// allocation wrote it: child positions in the presented tree, which skips no child the
+    /// observation kept. Port of <c>proves</c> in
+    /// <c>crates/core/src/refs/ref_capture_proof.rs</c>.
+    ///
+    /// The presented tree is a cut of the counted observation, so a node the projection rebuilt
+    /// is not the node the census holds; the path is what ties them.</summary>
+    internal bool ProvesAt(List<int> path)
+    {
+        var node = _root;
+        foreach (var step in path)
+        {
+            if (step < 0 || step >= node.Children.Count)
+            {
+                return false;
+            }
+            node = node.Children[step];
+        }
+        return Proves(node);
+    }
+
+    /// <summary>Unread nodes with their path, for a diagnostic dump.</summary>
+    internal IEnumerable<(string Path, int Bits)> UnreadNodes()
+    {
+        List<(string Path, int Bits)> found = [];
+        void Walk(AccessibilityNode node, string path)
+        {
+            var bits = _unread.FirstOrDefault(b => b.Node == node).Bits;
+            if (bits != 0)
+            {
+                found.Add((path, bits));
+            }
+
+            foreach (var (i, child) in node.Children.Select((c, i) => (i, c)))
+            {
+                Walk(child, path.Length == 0 ? i.ToString() : path + "." + i);
+            }
+        }
+
+        Walk(_root, string.Empty);
+        return found;
+    }
+
+    /// <summary>Nodes that could not answer at least one identity field, by bit. Diagnostic only.</summary>
+    internal string UnreadSummary() => string.Join(", ", new[]
+    {
+        "role=" + _unread.Count(b => (b.Bits & FullPredicate.RoleBit) != 0),
+        "name=" + _unread.Count(b => (b.Bits & FullPredicate.NameBit) != 0),
+        "desc=" + _unread.Count(b => (b.Bits & FullPredicate.DescriptionBit) != 0),
+    });
+
+    /// <summary>How many nodes report this predicate for its own field subset. Diagnostic only.</summary>
+    internal int CountFor(FullPredicate predicate)
+    {
+        var total = 0;
+        foreach (var node in _nodes)
+        {
+            foreach (var key in KeysOf(node, predicate.Mask()))
+            {
+                if (key == predicate)
+                {
+                    total++;
+                }
+            }
+        }
+
+        return total;
     }
 
     /// <summary>Whether the node is proven unique over this observation: exactly one node matches
@@ -53,8 +124,7 @@ internal sealed class CaptureCensus
 
         var predicate = FullPredicate.OfNode(node);
         var mask = predicate.Mask();
-        if (mask == 0
-            || !_indices.TryGetValue(node, out var index)
+        if (!_indices.TryGetValue(node, out var index)
             || !Bucket(mask).TryGetValue(predicate, out var winner)
             || winner != index)
         {
@@ -84,7 +154,8 @@ internal sealed class CaptureCensus
     }
 
     /// <summary>The nodes each predicate of this field subset matched, kept only where exactly one
-    /// node matched.</summary>
+    /// node matched. The subset with no fields is counted: a node whose role alone is unique in the
+    /// window is proven by that, which is the bucket Rust indexes at 0.</summary>
     private Dictionary<FullPredicate, int> Bucket(int mask)
     {
         if (_buckets.TryGetValue(mask, out var done))

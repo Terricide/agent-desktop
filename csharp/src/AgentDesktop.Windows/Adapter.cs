@@ -57,7 +57,8 @@ public sealed partial class WindowsAdapter : PlatformAdapter
     public void ScrollIntoView(NativeHandle handle, InteractionLease lease) =>
         _actions.ScrollIntoView(handle, lease);
 
-    /// <summary>The provider reports a runtime id for every element, so a shallow capture can
-    /// re-identify its refs from the token recorded on the node.</summary>
-    public bool RetainsElementTokens() => true;
+    /// <summary>The adapter records no element token on observed nodes, so a shallow capture
+    /// cannot re-identify its refs from a token and needs a whole-window read to prove them.
+    /// Matches the Rust Windows adapter, which leaves <c>retained_object</c> unset.</summary>
+    public bool RetainsElementTokens() => false;
 }

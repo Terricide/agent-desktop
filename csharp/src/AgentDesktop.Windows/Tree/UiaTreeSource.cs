@@ -66,6 +66,7 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
         PropertyIds.LegacyDefaultAction,
         PropertyIds.AriaRole,
         PropertyIds.FullDescription,
+        PropertyIds.LabeledBy,
     };
 
     private readonly bool _includeBounds;
@@ -241,10 +242,14 @@ internal sealed class UiaTreeSource : TreeSource<Element>, IDisposable
     /// policy on what they mean lives in `NameEvidenceFactory.LabelFromTarget`, which this function only calls.</summary>
     private static LabelOutcome ReadLabelOf(Element node, bool cached)
     {
-        var target = node.LabeledByTarget(cached);
-        if (target == IntPtr.Zero)
+        var (target, readFailed) = node.LabeledByTarget(cached);
+        if (readFailed)
         {
             return LabelOutcome.Failed;
+        }
+        if (target == IntPtr.Zero)
+        {
+            return LabelOutcome.Unlabelled;
         }
 
         using var element = new Element(target);

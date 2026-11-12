@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using AgentDesktop.Core.Adapter;
 using AgentDesktop.Core.Locator;
@@ -102,21 +103,24 @@ public sealed class SnapshotCommand
     {
         var budget = new SnapshotBudget(Math.Min(maxNodes, MaxObservationNodes));
         var effective = WithSkeletonDepth(options);
-        var observed = _adapter.ObserveTree(
+        var depth = ObservationRequest.SnapshotLogicalDepth(effective);
+        var whole = depth < WindowCapture.WholeWindowDepth && !_adapter.RetainsElementTokens()
+            ? WindowCapture.ReadWholeWindow(_adapter, window, effective,
+                deadline.CappedBy(deadline.Remaining() * 3 / 4))
+            : null;
+        var censusRoot = whole ?? _adapter.ObserveTree(
             new ObservationRoot.Window(window),
-            new ObservationRequest(effective.WithRefIdentityBounds(), deadline));
+            new ObservationRequest(effective.WithRefIdentityBounds(), deadline)).Root;
+        var exhaustive = WindowCapture.IsExhaustive(censusRoot);
+        var presented = ReferenceEquals(censusRoot, whole)
+            ? WindowCapture.ProjectToDepth(whole, depth)
+            : censusRoot;
         var map = new RefMap(SnapshotId.New());
-        var census = new CaptureCensus(observed.Root, observed.Complete);
-        var context = new AllocationContext(
-            window,
-            map,
-            budget,
-            effective,
-            census,
-            SkeletonAnchors.Plan(observed.Root, census),
-            observed.Complete);
-        var root = Assign(observed.Root, context, []);
-        var complete = observed.Complete && budget.IsComplete;
+        var census = new CaptureCensus(censusRoot, exhaustive);
+        var context = new AllocationContext(window, map, budget, effective, census,
+            SkeletonAnchors.Plan(censusRoot, census), exhaustive);
+        var root = Assign(presented, context, []);
+        var complete = exhaustive && budget.IsComplete;
         FinalizeCaptureUniqueness(map, complete);
         _snapshots.Save(map, _sessions.Namespace(sessionId));
         return new CapturedTree(map, root, window, complete, budget);
@@ -171,7 +175,9 @@ public sealed class SnapshotCommand
     }
 
     /// <summary>The command's object, with its keys in sorted order, as the envelope writes
-    /// every object. `window` is present only for a window-owned surface.</summary>
+    /// every object. `window` is present only for a window-owned surface. The tree is read back
+    /// with a depth ceiling as deep as the tree a whole-window walk builds, because the reader's
+    /// default of 64 throws on a deep window.</summary>
     private static JsonObject Data(string app, RefMap map, AccessibilityNode root, WindowInfo window, bool complete, SnapshotBudget budget)
     {
         var writer = new EnvelopeWriter();
@@ -182,7 +188,8 @@ public sealed class SnapshotCommand
             ["complete"] = complete,
             ["ref_count"] = map.Count,
             ["snapshot_id"] = map.SnapshotId,
-            ["tree"] = JsonNode.Parse(writer.Text())!,
+            ["tree"] = JsonNode.Parse(writer.Text(), null,
+                new JsonDocumentOptions { MaxDepth = 1024 })!,
         };
 
         if (!complete)
@@ -324,7 +331,7 @@ public sealed class SnapshotCommand
     private static RefEntry Capture(AccessibilityNode node, List<int> path, AllocationContext context)
     {
         var window = context.Window;
-        var uniqueAtCapture = context.Census.Proves(node);
+        var uniqueAtCapture = context.Census.ProvesAt(path);
         var entry = new RefEntry
         {
             Process = new RefProcess

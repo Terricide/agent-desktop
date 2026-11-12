@@ -65,6 +65,10 @@ public static class Slots
 
     public const int CacheRequestPutTreeFilter = 9;
 
+    public const int CacheRequestPutElementMode = 11;
+
+    public const int ElementModeFull = 1;
+
     public const int ElementSetFocus = 3;
 
     public const int ElementFindAll = 6;
