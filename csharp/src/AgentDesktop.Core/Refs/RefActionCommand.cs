@@ -44,8 +44,8 @@ public sealed class RefActionCommand
         var map = _snapshots.Load(parts[0].Substring(1), _sessions.Namespace(sessionId));
         if (map is null)
         {
-            return Envelope.Err(command, new AdapterError(
-                ErrorCode.SnapshotNotFound,
+            return Envelope.Err(command, AdapterError.SnapshotNotFound(
+                parts[0].Substring(1),
                 $"Snapshot '{parts[0]}' is not in this session's namespace"));
         }
 

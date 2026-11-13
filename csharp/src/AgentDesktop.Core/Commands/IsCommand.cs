@@ -46,8 +46,8 @@ public sealed class IsCommand
         var map = _snapshots.Load(snapshotId, _sessions.Namespace(sessionId));
         if (map is null)
         {
-            return Envelope.Err(command, new AdapterError(
-                ErrorCode.SnapshotNotFound,
+            return Envelope.Err(command, AdapterError.SnapshotNotFound(
+                snapshotId,
                 $"Snapshot '{snapshotId}' is not in this session's namespace"));
         }
 

@@ -464,4 +464,38 @@ public class IsCommandTests
         Assert.Equal("checked", data["property"]!.GetValue<string>());
         Assert.Equal($"@{SnapshotId}:e1", data["ref"]!.GetValue<string>());
     }
+
+    /// <summary>A ref whose snapshot is missing must say nothing was delivered and point at the
+    /// session scope, matching the Rust contract. Without a safe-retry disposition the envelope
+    /// writer suppresses recovery, so a read-only failure cannot tell the caller how to recover.</summary>
+    [Fact]
+    public void IsCommandReportsSnapshotNotFoundWithNotDeliveredDispositionAndRecovery()
+    {
+        var (command, _) = Slice(Entry("checkbox", new List<string> { "Click" }));
+        var envelope = Run(command, "checked", "@s9:e1");
+        var error = envelope["error"]!.AsObject();
+
+        Assert.Equal("SNAPSHOT_NOT_FOUND", error["code"]!.GetValue<string>());
+        Assert.Equal("not_delivered", error["disposition"]!["delivery"]!.GetValue<string>());
+        Assert.Equal("safe", error["disposition"]!["retry"]!.GetValue<string>());
+        Assert.False(string.IsNullOrEmpty(error["suggestion"]!.GetValue<string>()));
+        Assert.Equal("refresh_snapshot_then_retry_original", error["recovery"]!["strategy"]!.GetValue<string>());
+        Assert.True(error["recovery"]!["retryable"]!.GetValue<bool>());
+        Assert.True(error["recovery"]!["requires_fresh_snapshot"]!.GetValue<bool>());
+    }
+
+    /// <summary>A ref that is in the snapshot store but not in the map is stale, and a stale read
+    /// must carry the same delivery disposition as the Rust side.</summary>
+    [Fact]
+    public void IsCommandReportsStaleRefWithNotDeliveredDispositionAndRecovery()
+    {
+        var (command, _) = Slice(Entry("checkbox", new List<string> { "Click" }));
+        var envelope = Run(command, "checked", $"@{SnapshotId}:e99");
+        var error = envelope["error"]!.AsObject();
+
+        Assert.Equal("STALE_REF", error["code"]!.GetValue<string>());
+        Assert.Equal("not_delivered", error["disposition"]!["delivery"]!.GetValue<string>());
+        Assert.Equal("safe", error["disposition"]!["retry"]!.GetValue<string>());
+        Assert.Equal("refresh_snapshot_then_retry_original", error["recovery"]!["strategy"]!.GetValue<string>());
+    }
 }

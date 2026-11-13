@@ -134,6 +134,21 @@ public class AdapterError : Exception
             .WithSuggestion("Run 'snapshot' to refresh, then retry with the updated ref.")
             .WithDisposition(DeliverySemantics.NotDelivered());
 
+    /// <summary>A ref whose snapshot is not in the acting session's namespace. Nothing is delivered, so
+    /// recovery can be offered; the snapshot that produced the ref must be taken in the same session.</summary>
+    public static AdapterError SnapshotNotFound(string snapshotId, string? message = null) =>
+        new AdapterError(
+            ErrorCode.SnapshotNotFound,
+            message ?? $"Snapshot '{snapshotId}' not found")
+            .WithSuggestion(
+                "Re-run a snapshot and retry with a ref from the returned snapshot "
+                + "(CLI: snapshot, then use the printed @<snapshot_id>:eN ref; FFI: ad_snapshot then pass the printed "
+                + "qualified ref to ad_execute_by_ref). Snapshots are scoped to the session that took them, so take "
+                + "the snapshot under the same --session or AGENT_DESKTOP_SESSION you act with: one taken outside a "
+                + "session is not visible to a session-scoped action, and re-running it outside the session will "
+                + "fail the same way")
+            .WithDisposition(DeliverySemantics.NotDelivered());
+
     public static AdapterError AmbiguousTarget(string message) =>
         new AdapterError(ErrorCode.AmbiguousTarget, message)
             .WithSuggestion("Re-run a snapshot to refresh refs, then retry with a more specific ref")
