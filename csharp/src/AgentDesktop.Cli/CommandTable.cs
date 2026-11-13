@@ -14,8 +14,9 @@ public enum PermissionNeed
 /// the platform does not implement fails closed with PLATFORM_NOT_SUPPORTED.</summary>
 public static class CommandTable
 {
-    public static readonly IReadOnlySet<string> Names = new HashSet<string>
-    {
+    /// <summary>Every accepted name in the order the help text lists them.</summary>
+    public static readonly string[] NamesInOrder =
+    [
         "snapshot", "find", "screenshot", "get", "is",
         "click", "double-click", "triple-click", "right-click", "type", "set-value",
         "clear", "focus", "select", "toggle", "check", "uncheck", "expand", "collapse",
@@ -30,7 +31,9 @@ public static class CommandTable
         "clipboard-get", "clipboard-set", "clipboard-clear",
         "wait", "status", "permissions", "version", "batch", "skills", "session",
         "cursor-overlay", "trace",
-    };
+    ];
+
+    public static readonly IReadOnlySet<string> Names = new HashSet<string>(NamesInOrder);
 
     /// <summary>The permission a command needs. Reading a surface and acting on a ref need
     /// accessibility; a whole-screen capture needs screen recording.</summary>

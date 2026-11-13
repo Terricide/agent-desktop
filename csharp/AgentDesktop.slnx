@@ -7,5 +7,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/AgentDesktop.Tests/AgentDesktop.Tests.csproj" />
     <Project Path="tests/AgentDesktop.Windows.Tests/AgentDesktop.Windows.Tests.csproj" />
+    <Project Path="tests/AgentDesktop.Cli.Tests/AgentDesktop.Cli.Tests.csproj" />
   </Folder>
 </Solution>

@@ -22,8 +22,9 @@ public sealed record ParsedCommand(string Name, Dictionary<string, string?> Flag
         Value("session") ?? (string.IsNullOrWhiteSpace(fromEnvironment) ? null : fromEnvironment);
 }
 
-/// <summary>The argv outcome: a command, or the reason argv did not name one.</summary>
-public sealed record ParseOutcome(ParsedCommand? Command, string? Error);
+/// <summary>The argv outcome: a command, the reason argv did not name one, or the request for the
+/// command list. A help request is not an argument error, so it carries no refusal.</summary>
+public sealed record ParseOutcome(ParsedCommand? Command, string? Error, bool Help = false);
 
 /// <summary>Reads argv into a command. A flag is `--name` and takes the next token as its
 /// value, unless the next token is another flag, in which case the flag is set with no
@@ -34,10 +35,15 @@ public static class ArgParser
     {
         if (argv.Length == 0)
         {
-            return new ParseOutcome(null, "No command given");
+            return new ParseOutcome(null, "No command given", true);
         }
 
         var name = argv[0];
+        if (name is "--help" or "-h")
+        {
+            return new ParseOutcome(null, null, true);
+        }
+
         if (!CommandTable.Names.Contains(name))
         {
             return new ParseOutcome(null, $"'{name}' is not a command");

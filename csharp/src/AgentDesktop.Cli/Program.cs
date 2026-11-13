@@ -5,6 +5,13 @@ using AgentDesktop.Windows;
 
 var outcome = ArgParser.Parse(args);
 
+if (outcome.Help)
+{
+    var binaryName = Path.GetFileName(Environment.ProcessPath) ?? "agent-desktop";
+    Console.WriteLine(HelpText.Write(binaryName));
+    return 0;
+}
+
 if (outcome.Command is null)
 {
     var attempted = args.Length > 0 ? args[0] : "agent-desktop";
