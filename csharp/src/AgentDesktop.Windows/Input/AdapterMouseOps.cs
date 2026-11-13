@@ -98,9 +98,11 @@ internal static class AdapterMouseOps
     /// <summary>The press bit a button name selects. Exposed so the pairing can be read without posting.</summary>
     internal static uint PressFor(string button) => ButtonBits(button);
 
-    private static MouseInputEvent MoveTo(Point point) =>
-        new MouseInputEvent((int)Math.Round(point.X), (int)Math.Round(point.Y), 0,
-            MouseSend.MouseEventfMove | MouseSend.MouseEventfAbsolute | MouseSend.MouseEventfVirtualDesk);
+    private static MouseInputEvent MoveTo(Point point)
+    {
+        var normalized = MouseCoord.NormalizePoint(point);
+        return MouseSend.MoveInput(normalized.X, normalized.Y, normalized.VirtualDesktop);
+    }
 
     private static uint ButtonBits(string button) => button switch
     {

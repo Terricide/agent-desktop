@@ -22,8 +22,7 @@ public class CommandSurfaceTests
     /// methods they need are not ported, not because the arm is missing.</summary>
     private static readonly string[] Unwired =
     [
-        "screenshot", "is", "hover", "launch", "close-app", "focus-window",
-        "resize-window", "move-window", "minimize", "maximize", "restore",
+        "screenshot", "hover", "launch", "close-app",
         "open-system-surface", "list-surfaces", "list-notifications",
         "dismiss-notification", "dismiss-all-notifications", "notification-action",
         "wait", "status", "batch", "skills", "session",

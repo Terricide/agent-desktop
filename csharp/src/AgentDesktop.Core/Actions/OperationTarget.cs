@@ -1,4 +1,5 @@
 using AgentDesktop.Core.Input;
+using AgentDesktop.Core.Systems;
 using AgentDesktop.Core.Tree;
 
 namespace AgentDesktop.Core.Actions;
@@ -14,6 +15,6 @@ public sealed record OperationTarget
     public Point? To { get; init; }
 }
 
-public sealed record OperationWindow(string Id, string Title, string Process);
+public sealed record OperationWindow(string Id, string Title, ProcessIdentity Process);
 
-public sealed record OperationApp(string Name, string Process);
+public sealed record OperationApp(string Name, ProcessIdentity Process);

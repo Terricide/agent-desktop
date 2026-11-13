@@ -1,20 +1,54 @@
 namespace AgentDesktop.Core.Systems;
 
-/// <summary>A window operation a command asks the platform to perform. Each case is a nested record, so a pattern such as <c>WindowOp.Resize</c> matches one case.</summary>
+/// <summary>The window change one window command asks for. The geometry cases carry the rectangle the
+/// command requested; the state cases carry none, because a minimize, maximize, or restore names a
+/// placement the window must reach, not a size. Port of <c>WindowOp</c> in
+/// <c>crates/core/src/system/window_op.rs</c>.</summary>
 public abstract record WindowOp
 {
-    /// <summary>Set the window's width and height.</summary>
     public sealed record Resize(double Width, double Height) : WindowOp;
 
-    /// <summary>Set the window's top-left position.</summary>
     public sealed record Move(double X, double Y) : WindowOp;
 
-    /// <summary>Minimize the window.</summary>
     public sealed record Minimize : WindowOp;
 
-    /// <summary>Maximize the window.</summary>
     public sealed record Maximize : WindowOp;
 
-    /// <summary>Restore the window from minimized or maximized.</summary>
     public sealed record Restore : WindowOp;
+
+    /// <summary>The command name the report carries, which is the CLI name, not the operation word.
+    /// The state verbs report the verb alone; the geometry writes report the full command name.</summary>
+    public string CommandName() => this switch
+    {
+        Resize => "resize-window",
+        Move => "move-window",
+        Minimize => "minimize",
+        Maximize => "maximize",
+        Restore => "restore",
+        _ => "window",
+    };
+
+    /// <summary>The operation word the tie refusal names, so a resize that found two candidates says
+    /// what it was trying to resize. This is the verb alone, not the command name.</summary>
+    public string Verb() => this switch
+    {
+        Resize => "resize",
+        Move => "move",
+        Minimize => "minimize",
+        Maximize => "maximize",
+        Restore => "restore",
+        _ => "window",
+    };
+
+    /// <summary>The step label naming the platform call that carried the operation, so the report says
+    /// which mechanism the window was written through.</summary>
+    public string StepLabel() => this switch
+    {
+        Resize => "window_resize",
+        Move => "window_move",
+        Minimize => "window_minimize",
+        Maximize => "window_maximize",
+        Restore => "window_restore",
+        _ => "window_op",
+    };
 }

@@ -47,7 +47,14 @@ public static class Dispatch
                 "list-apps" => ListApps(adapter, command),
                 "list-displays" => ListDisplays(adapter),
                 "list-windows" => ListWindows(adapter, command),
+                "focus-window" => FocusWindow(adapter, command),
+                "resize-window" => ResizeWindow(adapter, command),
+                "move-window" => MoveWindow(adapter, command),
+                "minimize" => WindowStateChange(adapter, command),
+                "maximize" => WindowStateChange(adapter, command),
+                "restore" => WindowStateChange(adapter, command),
                 "get" => RunGet(adapter, snapshots, sessions, session, command),
+                "is" => RunIs(adapter, snapshots, sessions, session, command),
                 "version" => Version(),
                 "click" => RefAction(command, adapter, snapshots, sessions, session),
                 "double-click" => RefAction(command, adapter, snapshots, sessions, session),
@@ -160,6 +167,22 @@ public static class Dispatch
 
         return new GetCommand(adapter, snapshots, sessions)
             .Run(command.Name, command.Ref, command.Value("property") ?? "text", session);
+    }
+
+    /// <summary>`is` answers one property of a captured ref as a predicate. The ref is the first
+    /// positional, so the same strict resolution every ref action uses applies, and the property
+    /// selects which predicate answers.</summary>
+    private static EnvelopeResponse RunIs(PlatformAdapter adapter, SnapshotStore snapshots,
+        SessionStore sessions, string? session, ParsedCommand command)
+    {
+        if (command.Ref is null)
+        {
+            return Envelope.Err(command.Name, AdapterError.InvalidArgs(
+                "is needs a snapshot-qualified ref: is @<snapshot_id>:eN --property visible"));
+        }
+
+        return new IsCommand(adapter, snapshots, sessions)
+            .Run(command.Name, command.Ref, command.Value("property") ?? "visible", session);
     }
 
     private static EnvelopeResponse RefAction(ParsedCommand command, PlatformAdapter adapter, SnapshotStore snapshots, SessionStore sessions, string? session)
@@ -399,6 +422,48 @@ public static class Dispatch
         var writer = new EnvelopeWriter();
         InventoryJson.WriteWindows(writer, windows);
         return Envelope.Ok("list-windows", JsonNode.Parse(writer.Text()));
+    }
+
+    private static EnvelopeResponse FocusWindow(PlatformAdapter adapter, ParsedCommand command) =>
+        new FocusWindowCommand(adapter).Run("focus-window", command.Value("window-id"), command.Value("app"), command.Value("title"));
+
+    private static EnvelopeResponse ResizeWindow(PlatformAdapter adapter, ParsedCommand command)
+    {
+        if (command.Real("width") is not double width || command.Real("height") is not double height)
+        {
+            return Envelope.Err(command.Name,
+                AdapterError.InvalidArgs("resize-window needs --width and --height in pixels"));
+        }
+
+        return new WindowLifecycleCommand(adapter).Run(
+            "resize-window", command.Value("window-id"), command.Value("app"), command.Value("title"),
+            new WindowOp.Resize(width, height));
+    }
+
+    private static EnvelopeResponse MoveWindow(PlatformAdapter adapter, ParsedCommand command)
+    {
+        if (command.Real("x") is not double x || command.Real("y") is not double y)
+        {
+            return Envelope.Err(command.Name,
+                AdapterError.InvalidArgs("move-window needs --x and --y in pixels"));
+        }
+
+        return new WindowLifecycleCommand(adapter).Run(
+            "move-window", command.Value("window-id"), command.Value("app"), command.Value("title"),
+            new WindowOp.Move(x, y));
+    }
+
+    private static EnvelopeResponse WindowStateChange(PlatformAdapter adapter, ParsedCommand command)
+    {
+        var op = command.Name switch
+        {
+            "minimize" => (WindowOp)new WindowOp.Minimize(),
+            "maximize" => (WindowOp)new WindowOp.Maximize(),
+            _ => (WindowOp)new WindowOp.Restore(),
+        };
+
+        return new WindowLifecycleCommand(adapter).Run(
+            command.Name, command.Value("window-id"), command.Value("app"), command.Value("title"), op);
     }
 
     private static EnvelopeResponse Version()

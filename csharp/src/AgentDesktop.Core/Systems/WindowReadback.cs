@@ -1,46 +1,33 @@
-using AgentDesktop.Core.Response;
+using System.Text.Json.Nodes;
 
 namespace AgentDesktop.Core.Systems;
 
-/// <summary>The read-back that verifies a window operation landed. A geometry read-back carries a tolerance and its units; a state read-back carries neither.</summary>
-public readonly record struct WindowReadback
+/// <summary>What a window write is verified against: the geometry it must settle within, or the
+/// placement state it must reach. A geometry scope carries the re-read tolerance in pixels, because a
+/// window can settle a few pixels away from the rectangle requested; a state scope carries none.
+/// Port of <c>WindowReadback</c> in <c>crates/core/src/system/window_readback.rs</c>.</summary>
+public sealed record WindowReadback
 {
-    public string Scope { get; }
+    public string Scope { get; init; } = "";
+    public double? Tolerance { get; init; }
+    public string? Units { get; init; }
 
-    public double? Tolerance { get; }
+    public static WindowReadback State(string scope) => new() { Scope = scope };
 
-    public string? Units { get; }
-
-    private WindowReadback(string scope, double? tolerance, string? units)
-    {
-        Scope = scope;
-        Tolerance = tolerance;
-        Units = units;
-    }
-
-    /// <summary>A read-back that verifies window state, with no tolerance.</summary>
-    public static WindowReadback State(string scope) => new(scope, null, null);
-
-    /// <summary>A read-back that verifies window geometry within a tolerance in the given units.</summary>
     public static WindowReadback Geometry(string scope, double tolerance, string units) =>
-        new(scope, tolerance, units);
+        new() { Scope = scope, Tolerance = tolerance, Units = units };
 
-    /// <summary>The verification details as JSON text, keys in sorted order as the envelope writes them.</summary>
-    internal string DetailsJson()
+    /// <summary>The read-back as the report's details: the scope the adapter verified, and the
+    /// tolerance a geometry scope is measured against.</summary>
+    public JsonObject Details()
     {
-        var writer = new EnvelopeWriter();
-        writer.ObjectStart();
-        if (Tolerance is { } tolerance && Units is { } units)
+        var details = new JsonObject { ["verification_scope"] = Scope };
+        if (Tolerance is { } tolerance)
         {
-            writer.Key("tolerance");
-            writer.Number(tolerance);
-            writer.Key("units");
-            writer.String(units);
+            details["tolerance"] = tolerance;
+            details["units"] = Units;
         }
 
-        writer.Key("verification_scope");
-        writer.String(Scope);
-        writer.ObjectEnd();
-        return writer.Text();
+        return details;
     }
 }

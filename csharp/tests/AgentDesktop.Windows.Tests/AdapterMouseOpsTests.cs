@@ -18,8 +18,19 @@ namespace AgentDesktop.Windows.Tests;
 /// notches. The conversion must never round a stated delta to zero, because a post that moves nothing
 /// looks like a delivery.
 /// </summary>
-public class AdapterMouseOpsTests
+public class AdapterMouseOpsTests : IDisposable
 {
+    private readonly List<MouseInputEvent> _posted = new List<MouseInputEvent>();
+    private readonly Action<IReadOnlyList<MouseInputEvent>> _originalSink;
+
+    public AdapterMouseOpsTests()
+    {
+        _originalSink = MouseSend.PostSink;
+        MouseSend.PostSink = _posted.AddRange;
+    }
+
+    public void Dispose() => MouseSend.PostSink = _originalSink;
+
     private static MouseEvent Move(double x, double y) =>
         new MouseEvent { Kind = "move", Point = new Point(x, y) };
 
@@ -42,6 +53,27 @@ public class AdapterMouseOpsTests
         Assert.Single(report.Result.Steps);
         Assert.Equal("pointer_move", report.Result.Steps[0].Label);
         Assert.Equal("physical_synthetic", report.Result.Steps[0].Mechanism);
+    }
+
+    [Fact]
+    public void APointInsideThePrimaryRectIsPostedAsAFractionOfTheNormalizedRangeNotRawPixels()
+    {
+        AdapterMouseOps.MouseEvent(Move(1200, 700), Lease);
+
+        MouseInputEvent move = Assert.Single(_posted);
+        Assert.Equal(0x8001, (int)move.Flags);
+        Assert.True(move.Dx > 10000, $"dx={move.Dx} is a raw pixel, not a normalized position");
+        Assert.True(move.Dy > 10000, $"dy={move.Dy} is a raw pixel, not a normalized position");
+    }
+
+    [Fact]
+    public void APointFarOutsideTheScreenIsNormalizedAgainstTheVirtualScreen()
+    {
+        AdapterMouseOps.MouseEvent(Move(100000, 10), Lease);
+
+        MouseInputEvent move = Assert.Single(_posted);
+        Assert.Equal(0xC001, (int)move.Flags);
+        Assert.Equal(65535, move.Dx);
     }
 
     [Fact]

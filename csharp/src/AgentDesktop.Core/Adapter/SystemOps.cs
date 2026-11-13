@@ -1,3 +1,4 @@
+using AgentDesktop.Core.Actions;
 using AgentDesktop.Core.Context;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Systems;
@@ -30,6 +31,14 @@ public interface SystemOps
     /// <summary>Performs the platform-native focus/raise for the exact window. Implementations return only after that window is confirmed focused.</summary>
     void FocusWindow(WindowInfo window, InteractionLease lease) =>
         throw AdapterError.NotSupported("focus_window");
+
+    /// <summary>Performs one window write and proves it landed: the native call, then the placement
+    /// re-read the operation's own read-back demands. The report carries the read-back, so a window that
+    /// clamps the requested size to a minimum, or that Windows owns and repositions, is reported as
+    /// unverified rather than as delivered. An adapter that never overrides this has not probed the
+    /// lifecycle surface at all, which is not the same fact as a window that refused the change.</summary>
+    OperationReport WindowOperation(WindowInfo window, WindowOp op, InteractionLease lease) =>
+        throw AdapterError.NotSupported("window_op");
 
     void FocusApp(ProcessIdentity process, InteractionLease lease) =>
         throw AdapterError.NotSupported("focus_app");

@@ -338,6 +338,28 @@ public class SnapshotSliceTests
         Assert.Contains("\"native_id\":{\"kind\":\"automation_id\",\"value\":\"send-btn\"}", json);
         Assert.Contains("\"subrole\":\"navigation\"", json);
     }
+
+    /// <summary>The capture record is what a state property answers from when the live read finds
+    /// nothing, so the states the observation saw have to reach the persisted refmap.</summary>
+    [Fact]
+    public void TheRefMapRecordsTheStatesTheCaptureObserved()
+    {
+        var node = Node("checkbox", "Bold", [], ["Toggle"]) with
+        {
+            Presentation = new NodePresentation
+            {
+                AvailableActions = ["Toggle"],
+                Bounds = new Rect(0, 0, 10, 10),
+                States = ["checked"],
+            },
+        };
+        var (snapshot, _, root, _) = Slice(node);
+
+        var persisted = SnapshotIdOf(snapshot.Run("Notes", null, TreeOptions.Default(), 100));
+        var map = new SnapshotStore(root).Load(persisted, new SessionStore(root).Namespace(null));
+
+        Assert.Equal(["checked"], map!.Entries[0].Capabilities.States);
+    }
 }
 
 

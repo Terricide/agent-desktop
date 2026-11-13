@@ -185,12 +185,16 @@ internal static partial class Walker
     }
 
     /// <summary>Maps a window handle to its root with <c>GA_ROOT</c>. A handle that is not a window
-    /// has no root, and this answers null rather than the handle it was given.</summary>
+    /// has no root, and this answers null rather than the handle it was given. The flag is part of
+    /// the call: <c>GetAncestor</c> takes two arguments, and a one-argument binding hands the callee
+    /// a residue register as its flag, so the root question answers nothing.</summary>
     internal static nint? RootOfHwnd(nint hwnd) =>
-        hwnd == 0 ? null : Root(hwnd);
+        hwnd == 0 ? null : Root(hwnd, GaRoot) is nint root && root != 0 ? root : null;
+
+    private const uint GaRoot = 2;
 
     [LibraryImport("user32.dll", EntryPoint = "GetAncestor")]
-    private static partial nint Root(nint hwnd);
+    private static partial nint Root(nint hwnd, uint flags);
 
     /// <summary>The nearest ancestor that advertises a scrollable viewport, and its rectangle. A
     /// truncated climb answers null, not a confident "no viewport", because a caller that reads

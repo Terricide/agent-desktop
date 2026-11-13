@@ -33,6 +33,24 @@ public static class CanonicalRoles
         return normalized == "unknown" || Tokens.Contains(normalized);
     }
 
+    /// <summary>The roles whose checked/unchecked state can be queried and set. Port of
+    /// <c>is_toggleable_role</c>.</summary>
+    public static bool IsToggleableRole(string role) =>
+        role.Trim().ToLowerInvariant() switch
+        {
+            "checkbox" or "switch" or "radiobutton" => true,
+            _ => false,
+        };
+
+    /// <summary>The roles that carry an expanded/collapsed surface state. Port of
+    /// <c>is_expandable_role</c>.</summary>
+    public static bool IsExpandableRole(string role) =>
+        role.Trim().ToLowerInvariant() switch
+        {
+            "combobox" or "menubutton" or "treeitem" or "disclosure" => true,
+            _ => false,
+        };
+
     /// <summary>The roles whose value the user changes, so a name that repeats the value is that
     /// value read twice, not a second identity field. Port of <c>is_mutable_value_role</c>.</summary>
     public static bool IsMutableValueRole(string role) =>

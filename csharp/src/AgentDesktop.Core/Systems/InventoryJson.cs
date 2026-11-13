@@ -74,6 +74,10 @@ public static class InventoryJson
         w.ObjectEnd();
     }
 
+    /// <summary>One window in the inventory shape, the shape 'focus-window' reports as the window it
+    /// brought to the front.</summary>
+    public static void WriteWindow(EnvelopeWriter w, WindowInfo window) => Window(w, window);
+
     private static void Window(EnvelopeWriter w, WindowInfo window)
     {
         w.ObjectStart();
