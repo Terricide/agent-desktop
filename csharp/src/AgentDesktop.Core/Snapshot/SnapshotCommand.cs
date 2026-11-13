@@ -352,6 +352,7 @@ public sealed class SnapshotCommand
             Geometry = new RefGeometry { Bounds = node.Presentation.Bounds },
             Capabilities = new RefCapabilities
             {
+                States = IsSkeletonAnchor(node, path, context) ? [] : node.Presentation.States,
                 AvailableActions = IsSkeletonAnchor(node, path, context) ? [] : node.Presentation.AvailableActions,
                 UniqueAtCapture = uniqueAtCapture,
             },
