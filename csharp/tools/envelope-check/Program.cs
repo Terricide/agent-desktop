@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using AgentDesktop.Core.Locator;
 using AgentDesktop.Core.Response;
 using AgentDesktop.Core.Tree;
 
@@ -11,7 +12,7 @@ var node = new AccessibilityNode
 {
     RefId = "e1",
     Role = "button",
-    Identity = new NodeIdentity { Name = "Run", Value = null, Description = null },
+    Identity = new NodeIdentity { Name = LocatorField<string>.Known("Run") },
     Presentation = new NodePresentation
     {
         Hint = null,
