@@ -1,0 +1,44 @@
+== RUST
+ window 'Downloads - File Explorer' ref None acts ['SetFocus'] cc None
+   group None ref None acts None cc None
+   group 'Downloads' ref None acts ['SetFocus'] cc None
+     group None ref None acts ['SetFocus'] cc None
+       group 'Explorer Pane' ref None acts None cc 3
+   group None ref None acts ['SetFocus'] cc None
+     group None ref None acts None cc None
+       tablist None ref None acts ['ScrollTo'] cc 2
+       toolbar None ref @s2vshwylloo7rw:e1 acts ['Toggle', 'Expand', 'Collapse', 'ScrollTo', 'Click'] cc 4
+       group None ref @s2vshwylloo7rw:e2 acts ['Click', 'ScrollTo'] cc 1
+       menubutton 'This PC' ref @s2vshwylloo7rw:e3 acts ['Click', 'Expand', 'Collapse', 'ScrollTo', 'SetFocus'] cc 2
+       group None ref None acts ['ScrollTo'] cc 1
+       group None ref @s2vshwylloo7rw:e4 acts ['Click', 'ScrollTo'] cc 1
+       toolbar None ref @s2vshwylloo7rw:e5 acts ['Toggle', 'Expand', 'Collapse', 'ScrollTo', 'Click'] cc 10
+       toolbar None ref @s2vshwylloo7rw:e6 acts ['Toggle', 'Expand', 'Collapse', 'ScrollTo', 'Click'] cc 1
+   group None ref @s2vshwylloo7rw:e7 acts ['SetValue', 'SetFocus'] cc None
+     menu 'System' ref None acts ['SetFocus'] cc None
+       menuitem 'System' ref @s2vshwylloo7rw:e8 acts ['Expand', 'Collapse', 'SetFocus'] cc None
+     button 'Minimize' ref @s2vshwylloo7rw:e9 acts ['Click'] cc None
+     button 'Maximize' ref @s2vshwylloo7rw:e10 acts ['Click'] cc None
+     button 'Close' ref @s2vshwylloo7rw:e11 acts ['Click'] cc None
+== CSHARP
+ window 'Downloads - File Explorer' ref None acts ['SetFocus'] cc None
+   group None ref None acts None cc None
+   group 'Downloads' ref None acts ['SetFocus'] cc None
+     group None ref None acts ['SetFocus'] cc None
+       group 'Explorer Pane' ref @s2x2kdqjk8kq3t:e1 acts None cc 3
+   group None ref None acts ['SetFocus'] cc None
+     group None ref None acts None cc None
+       tablist None ref @s2x2kdqjk8kq3t:e2 acts ['ScrollTo'] cc 2
+       toolbar None ref @s2x2kdqjk8kq3t:e3 acts ['Toggle', 'Expand', 'Collapse', 'ScrollTo', 'Click'] cc 4
+       group None ref @s2x2kdqjk8kq3t:e4 acts ['Click', 'ScrollTo'] cc 1
+       menubutton 'This PC' ref @s2x2kdqjk8kq3t:e5 acts ['Click', 'Expand', 'Collapse', 'ScrollTo', 'SetFocus'] cc 2
+       group None ref @s2x2kdqjk8kq3t:e6 acts ['ScrollTo'] cc 1
+       group None ref @s2x2kdqjk8kq3t:e7 acts ['Click', 'ScrollTo'] cc 1
+       toolbar None ref @s2x2kdqjk8kq3t:e8 acts ['Toggle', 'Expand', 'Collapse', 'ScrollTo', 'Click'] cc 10
+       toolbar None ref @s2x2kdqjk8kq3t:e9 acts ['Toggle', 'Expand', 'Collapse', 'ScrollTo', 'Click'] cc 1
+   group None ref @s2x2kdqjk8kq3t:e10 acts ['SetValue', 'SetFocus'] cc None
+     menu 'System' ref None acts ['SetFocus'] cc None
+       menuitem 'System' ref @s2x2kdqjk8kq3t:e11 acts ['Expand', 'Collapse', 'SetFocus'] cc None
+     button 'Minimize' ref @s2x2kdqjk8kq3t:e12 acts ['Click'] cc None
+     button 'Maximize' ref @s2x2kdqjk8kq3t:e13 acts ['Click'] cc None
+     button 'Close' ref @s2x2kdqjk8kq3t:e14 acts ['Click'] cc None

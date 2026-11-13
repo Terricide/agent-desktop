@@ -1,0 +1,28 @@
+DIFF explorer () R ('window', '', 'Downloads - File Explorer', None, 2) C ('window', '', 'Downloads - File Explorer', None, 4)
+DIFF explorer (1, 0, 0, 2) R ('group', '', 'Folder Layout Pane', None, 2) C ('group', '', 'Folder Layout Pane', None, 3)
+DIFF explorer (1, 0, 0, 2, 1, 0, 0) R ('treeitem', '@e3', 'Desktop (OneDrive)', None, 0) C ('treeitem', '@e3', 'Desktop (OneDrive)', None, 16)
+explorer [] rust 19 cs 324 refs 3 252 diffs 3
+DIFF explorer (1, 0, 0) R ('group', '', 'Explorer Pane', 3, 0) C ('group', '@e1', 'Explorer Pane', 3, 0)
+DIFF explorer (2, 0, 0) R ('tablist', '', None, 2, 0) C ('tablist', '@e2', None, 2, 0)
+DIFF explorer (2, 0, 1) R ('toolbar', '@e1', None, 4, 0) C ('toolbar', '@e3', None, 4, 0)
+DIFF explorer (2, 0, 2) R ('group', '@e2', None, 1, 0) C ('group', '@e4', None, 1, 0)
+DIFF explorer (2, 0, 3) R ('menubutton', '@e3', 'This PC', 2, 0) C ('menubutton', '@e5', 'This PC', 2, 0)
+DIFF explorer (2, 0, 4) R ('group', '', None, 1, 0) C ('group', '@e6', None, 1, 0)
+explorer ['--max-depth', '3'] rust 21 cs 21 refs 11 14 diffs 14
+DIFF msedge (1,) R ('group', '', 'RFA-2122: stop agents re-downloading PatchDatabase.gz when their patch count is off by one (!1157) · Merge requests · Syxsense / Vcms · GitLab - Microsoft Edge', None, 1) C ('group', '', 'RFA-2122: stop agents re-downloading PatchDatabase.gz when their patch count is off by one (!1157) · Merge requests · Syxsense / Vcms · GitLab - Microsoft Edge', None, 3)
+DIFF msedge (1, 0) R ('group', '', None, None, 1) C ('group', '', None, None, 2)
+DIFF msedge (1, 0, 0, 3) R ('group', '', None, None, 2) C ('group', '', None, None, 12)
+DIFF msedge (1, 0, 0, 3, 1) R ('group', '', None, None, 2) C ('group', '', None, None, 4)
+DIFF msedge (1, 0, 0, 3, 1, 1) R ('toolbar', '', 'App bar', None, 5) C ('toolbar', '', 'App bar', None, 19)
+DIFF msedge (1, 0, 0, 3, 1, 1, 4) R ('group', '', None, None, 0) C ('group', '', None, None, 32)
+msedge [] rust 22 cs 594 refs 9 299 diffs 6
+DIFF msedge (1,) R ('group', '', 'RFA-2122: stop agents re-downloading PatchDatabase.gz when their patch count is off by one (!1157) · Merge requests · Syxsense / Vcms · GitLab - Microsoft Edge', None, 1) C ('group', '', 'RFA-2122: stop agents re-downloading PatchDatabase.gz when their patch count is off by one (!1157) · Merge requests · Syxsense / Vcms · GitLab - Microsoft Edge', None, 2)
+DIFF msedge (1, 0) R ('group', '', None, None, 1) C ('group', '', None, None, 2)
+DIFF msedge (1, 0, 0, 3) R ('group', '', None, None, 2) C ('group', '', None, None, 12)
+DIFF msedge (1, 0, 0, 3, 1) R ('group', '', None, None, 3) C ('group', '', None, None, 4)
+DIFF msedge (1, 0, 0, 3, 1, 1) R ('toolbar', '', 'App bar', None, 19) C ('toolbar', '@e6', 'App bar', None, 19)
+DIFF msedge (1, 0, 0, 3, 1, 1, 0) R ('button', '@e6', 'Back', None, 0) C ('button', '@e7', 'Back', None, 0)
+msedge ['--max-depth', '3'] rust 121 cs 229 refs 76 112 diffs 77
+calc no window
+notepad [] rust 68 cs 68 refs 28 28 diffs 0
+notepad ['--max-depth', '3'] rust 39 cs 39 refs 21 21 diffs 0

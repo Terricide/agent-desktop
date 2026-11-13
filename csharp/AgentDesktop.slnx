@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentDesktop.Core/AgentDesktop.Core.csproj" />
+    <Project Path="src/AgentDesktop.Windows/AgentDesktop.Windows.csproj" />
+    <Project Path="src/AgentDesktop.Cli/AgentDesktop.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentDesktop.Tests/AgentDesktop.Tests.csproj" />
+    <Project Path="tests/AgentDesktop.Windows.Tests/AgentDesktop.Windows.Tests.csproj" />
+    <Project Path="tests/AgentDesktop.Cli.Tests/AgentDesktop.Cli.Tests.csproj" />
+  </Folder>
+</Solution>

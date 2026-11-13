@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AgentDesktop.Core</RootNamespace>
+    <AssemblyName>AgentDesktop.Core</AssemblyName>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- Core defines the adapter contract and every shared type. It references no
+      platform project: check-architecture.py fails the build when it does. -->
+
+  <!-- The envelope's JSON writer is generated for each marked type, so the envelope
+      path never asks a runtime type model what a type contains. -->
+
+  <!-- The capture census and the skeleton anchor plan are internal, and the rule they
+      share is only checkable from a test that builds a census. -->
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentDesktop.Tests" />
+    <InternalsVisibleTo Include="AgentDesktop.Windows.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../tools/AgentDesktop.SourceGen/AgentDesktop.SourceGen.csproj"
+        OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>
